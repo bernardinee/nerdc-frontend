@@ -336,27 +336,125 @@ export const vehicleService = {
       return () => { clearInterval(timer); unsubStore() }
     }
 
-    // Live mode: poll REST + WebSocket for active vehicles
+    // ── Live mode ───────────────────────────────────────────────────────────
+    //
+    // The backend stores the real GPS position but drivers have no app to push
+    // updates. We keep a local animation layer for ON_DUTY vehicles:
+    //   • Backend poll  → source of truth for status, assigned incident, base position
+    //   • localState    → animated position that moves toward the incident each tick
+    //
+    // If a real GPS push ever arrives via WebSocket, we snap the local position
+    // to the actual coordinates so the two stay in sync.
+
+    interface LocalState {
+      lat: number; lng: number
+      speed: number; heading: number
+      status: Vehicle['status']
+    }
+
+    const localState = new Map<string, LocalState>()
+    let lastBackendVehicles: Vehicle[] = []
+    // Quick incident destination store (id → lat/lng)
+    const incidentDestinations = new Map<string, { lat: number; lng: number }>()
+
     let stopped = false
     const wsConnections = new Map<string, WebSocket>()
 
-    async function poll() {
+    // Fetch incidents and cache destinations
+    async function refreshIncidents() {
+      if (!INCIDENT_BASE) return
+      try {
+        const res = await incidentFetch('/incidents/open')
+        if (!res.ok) return
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const data: any[] = await res.json()
+        incidentDestinations.clear()
+        for (const inc of data) {
+          if (inc.id && inc.latitude != null && inc.longitude != null) {
+            incidentDestinations.set(inc.id, { lat: inc.latitude, lng: inc.longitude })
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Merge backend ground truth with local animation state
+    function applySimulation(backendVehicles: Vehicle[]): Vehicle[] {
+      return backendVehicles.map((bv) => {
+        if (bv.status !== 'en_route' || !bv.assignedIncidentId) {
+          localState.delete(bv.id)
+          return bv
+        }
+
+        const dest = incidentDestinations.get(bv.assignedIncidentId)
+        if (!dest) return bv
+
+        // Initialise local state from backend position on first sight
+        if (!localState.has(bv.id)) {
+          localState.set(bv.id, {
+            lat:     bv.coordinates.lat,
+            lng:     bv.coordinates.lng,
+            speed:   Math.round(60 + Math.random() * 30),
+            heading: Math.round(Math.random() * 360),
+            status:  'en_route',
+          })
+        }
+
+        const local = localState.get(bv.id)!
+
+        // Build a synthetic incident so simulateMovement can compute bearing
+        const syntheticIncident: Incident = {
+          ...({} as Incident),
+          id: bv.assignedIncidentId,
+          location: { lat: dest.lat, lng: dest.lng, address: '', region: '' },
+        }
+
+        const animated = simulateMovement(
+          {
+            ...bv,
+            coordinates: { lat: local.lat, lng: local.lng },
+            speed:   local.speed,
+            heading: local.heading,
+            status:  local.status,
+          },
+          [syntheticIncident],
+        )
+
+        localState.set(bv.id, {
+          lat:     animated.coordinates.lat,
+          lng:     animated.coordinates.lng,
+          speed:   animated.speed,
+          heading: animated.heading,
+          status:  animated.status,
+        })
+
+        return animated
+      })
+    }
+
+    // Poll backend (less frequently — every ~10 s)
+    let pollCount = 0
+    async function pollBackend() {
       try {
         const res = await authFetch('/vehicles')
         if (!res.ok) return
-        const data = await res.json()
-        const vehicles: Vehicle[] = data.map(normaliseVehicle)
-        cb(vehicles)
+        lastBackendVehicles = (await res.json()).map(normaliseVehicle)
 
-        // Open WebSocket for each ON_DUTY vehicle
+        // WebSocket for each active vehicle (real GPS if driver has app)
         if (WS_BASE) {
-          for (const v of vehicles) {
+          for (const v of lastBackendVehicles) {
             if (v.status === 'en_route' && !wsConnections.has(v.id)) {
               const ws = new WebSocket(`${WS_BASE}/vehicles/${v.id}/ws`)
-              ws.onmessage = async () => {
-                // Re-poll on any location update
-                const r = await authFetch('/vehicles')
-                if (r.ok) cb((await r.json()).map(normaliseVehicle))
+              ws.onmessage = (evt) => {
+                try {
+                  const loc = JSON.parse(evt.data as string)
+                  if (loc.latitude != null && loc.longitude != null) {
+                    // Snap local position to real GPS reading
+                    const existing = localState.get(v.id)
+                    if (existing) {
+                      localState.set(v.id, { ...existing, lat: loc.latitude, lng: loc.longitude })
+                    }
+                  }
+                } catch { /* ignore bad frames */ }
               }
               ws.onclose = () => wsConnections.delete(v.id)
               wsConnections.set(v.id, ws)
@@ -366,8 +464,19 @@ export const vehicleService = {
       } catch { /* ignore */ }
     }
 
-    poll()
-    const timer = setInterval(() => { if (!stopped) poll() }, intervalMs)
+    // Animation tick — runs every intervalMs, backend poll every ~5 ticks
+    async function tick() {
+      pollCount++
+      if (pollCount === 1 || pollCount % 5 === 0) {
+        await Promise.all([pollBackend(), refreshIncidents()])
+      }
+      if (lastBackendVehicles.length > 0) {
+        cb(applySimulation(lastBackendVehicles))
+      }
+    }
+
+    tick()
+    const timer = setInterval(() => { if (!stopped) tick() }, intervalMs)
 
     return () => {
       stopped = true
