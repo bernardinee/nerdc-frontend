@@ -12,7 +12,7 @@ import type { AnalyticsOverview, IncidentType, VehicleType } from '@/types'
 import { incidentStore, vehicleStore } from '../mocks/mockStore'
 import { sleep } from '@/lib/utils'
 import { subDays, format } from 'date-fns'
-import { authService } from './authService'
+import { apiFetch } from '../apiClient'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -21,14 +21,8 @@ const IS_MOCK_ANALYTICS = ANALYTICS_BASE === ''
 
 // ─── Live fetch helper ────────────────────────────────────────────────────────
 
-async function authFetch(path: string): Promise<Response> {
-  const token = authService.getToken()
-  return fetch(`${ANALYTICS_BASE}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  })
+function authFetch(path: string) {
+  return apiFetch(ANALYTICS_BASE, path)
 }
 
 // ─── Public service ───────────────────────────────────────────────────────────

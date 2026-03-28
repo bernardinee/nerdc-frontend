@@ -135,8 +135,8 @@ export default function IncidentFormPage() {
       })
       toast.success('Incident recorded successfully.')
       navigate('/dispatch')
-    } catch {
-      toast.error('Failed to record incident. Please try again.')
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to record incident. Please try again.')
     } finally {
       setSubmitting(false)
     }

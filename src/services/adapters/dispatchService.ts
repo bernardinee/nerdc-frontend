@@ -5,7 +5,7 @@ import type { DispatchSummary } from '@/types'
 import { incidentStore } from '../mocks/mockStore'
 import { vehicleStore } from '../mocks/mockStore'
 import { sleep } from '@/lib/utils'
-import { authService } from './authService'
+import { apiFetch } from '../apiClient'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -13,18 +13,6 @@ const ANALYTICS_BASE = (import.meta.env.VITE_ANALYTICS_URL as string | undefined
 const INCIDENT_BASE  = (import.meta.env.VITE_INCIDENT_URL as string | undefined)?.trim() ?? ''
 const DISPATCH_BASE  = (import.meta.env.VITE_DISPATCH_URL as string | undefined)?.trim() ?? ''
 const IS_MOCK = INCIDENT_BASE === '' && DISPATCH_BASE === ''
-
-// ─── Live fetch helper ────────────────────────────────────────────────────────
-
-async function authFetch(base: string, path: string): Promise<Response> {
-  const token = authService.getToken()
-  return fetch(`${base}${path}`, {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-  })
-}
 
 // ─── Public service ───────────────────────────────────────────────────────────
 
@@ -59,9 +47,9 @@ export const dispatchService = {
 
     // Live: combine open incidents + vehicles + analytics response-times
     const [incidentRes, vehicleRes, rtRes] = await Promise.all([
-      INCIDENT_BASE  ? authFetch(INCIDENT_BASE,  '/incidents/open')             : Promise.resolve(null),
-      DISPATCH_BASE  ? authFetch(DISPATCH_BASE,  '/vehicles')                   : Promise.resolve(null),
-      ANALYTICS_BASE ? authFetch(ANALYTICS_BASE, '/analytics/response-times')  : Promise.resolve(null),
+      INCIDENT_BASE  ? apiFetch(INCIDENT_BASE,  '/incidents/open')            : Promise.resolve(null),
+      DISPATCH_BASE  ? apiFetch(DISPATCH_BASE,  '/vehicles')                  : Promise.resolve(null),
+      ANALYTICS_BASE ? apiFetch(ANALYTICS_BASE, '/analytics/response-times') : Promise.resolve(null),
     ])
 
     const incidents: { status: string }[] = incidentRes?.ok ? await incidentRes.json() : []

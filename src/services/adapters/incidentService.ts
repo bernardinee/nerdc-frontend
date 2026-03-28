@@ -16,7 +16,7 @@
 import type { CreateIncidentPayload, Incident, IncidentStatus, IncidentType, VehicleType } from '@/types'
 import { incidentStore, vehicleStore, messageStore } from '../mocks/mockStore'
 import { sleep, generateId } from '@/lib/utils'
-import { authService } from './authService'
+import { apiFetch, extractApiError } from '../apiClient'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -25,16 +25,8 @@ const IS_MOCK = INCIDENT_BASE === ''
 
 // ─── Live fetch helper ────────────────────────────────────────────────────────
 
-async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const token = authService.getToken()
-  return fetch(`${INCIDENT_BASE}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init.headers ?? {}),
-    },
-  })
+function authFetch(path: string, init: RequestInit = {}) {
+  return apiFetch(INCIDENT_BASE, path, init)
 }
 
 // ─── Type / status mappings ───────────────────────────────────────────────────
@@ -257,10 +249,10 @@ export const incidentService = {
         incident_type: TYPE_TO_BACKEND[payload.type] ?? 'OTHER',
         latitude:      payload.location.lat,
         longitude:     payload.location.lng,
-        notes:         payload.notes || undefined,
+        notes:         payload.notes || null,
       }),
     })
-    if (!res.ok) throw new Error(`Failed to create incident (HTTP ${res.status})`)
+    if (!res.ok) throw new Error(await extractApiError(res, 'Failed to create incident'))
     return normaliseIncident(await res.json())
   },
 
@@ -279,7 +271,7 @@ export const incidentService = {
       method: 'PUT',
       body: JSON.stringify({ status: STATUS_TO_BACKEND[status] ?? status.toUpperCase() }),
     })
-    if (!res.ok) throw new Error(`Failed to update status (HTTP ${res.status})`)
+    if (!res.ok) throw new Error(await extractApiError(res, 'Failed to update status'))
     return normaliseIncident(await res.json())
   },
 
@@ -310,7 +302,7 @@ export const incidentService = {
         assigned_unit_type: VTYPE_TO_BACKEND[vehicleType ?? 'ambulance'] ?? 'AMBULANCE',
       }),
     })
-    if (!res.ok) throw new Error(`Failed to assign vehicle (HTTP ${res.status})`)
+    if (!res.ok) throw new Error(await extractApiError(res, 'Failed to assign vehicle'))
     return normaliseIncident(await res.json())
   },
 

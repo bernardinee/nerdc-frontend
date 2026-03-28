@@ -10,7 +10,7 @@ import type { Vehicle, VehicleType, RadioChannel } from '@/types'
 import type { Incident } from '@/types'
 import { vehicleStore, incidentStore, messageStore } from '../mocks/mockStore'
 import { sleep, generateId } from '@/lib/utils'
-import { authService } from './authService'
+import { apiFetch, extractApiError } from '../apiClient'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -21,28 +21,12 @@ const IS_MOCK        = DISPATCH_BASE === ''
 
 // ─── Live fetch helpers ───────────────────────────────────────────────────────
 
-async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const token = authService.getToken()
-  return fetch(`${DISPATCH_BASE}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init.headers ?? {}),
-    },
-  })
+function authFetch(path: string, init: RequestInit = {}) {
+  return apiFetch(DISPATCH_BASE, path, init)
 }
 
-async function incidentFetch(path: string, init: RequestInit = {}): Promise<Response> {
-  const token = authService.getToken()
-  return fetch(`${INCIDENT_BASE}${path}`, {
-    ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init.headers ?? {}),
-    },
-  })
+function incidentFetch(path: string, init: RequestInit = {}) {
+  return apiFetch(INCIDENT_BASE, path, init)
 }
 
 // ─── Type / status mappings ───────────────────────────────────────────────────
@@ -246,7 +230,7 @@ export const vehicleService = {
       method: 'PUT',
       body: JSON.stringify({ status: 'ON_DUTY', incident_id: incidentId }),
     })
-    if (!statusRes.ok) throw new Error(`Failed to dispatch vehicle (HTTP ${statusRes.status})`)
+    if (!statusRes.ok) throw new Error(await extractApiError(statusRes, 'Failed to dispatch vehicle'))
 
     // Assign vehicle to incident (best-effort — incident service may auto-assign)
     if (INCIDENT_BASE) {
@@ -315,7 +299,7 @@ export const vehicleService = {
       method: 'PUT',
       body: JSON.stringify({ status: 'AVAILABLE', incident_id: null }),
     })
-    if (!res.ok) throw new Error(`Failed to recall vehicle (HTTP ${res.status})`)
+    if (!res.ok) throw new Error(await extractApiError(res, 'Failed to recall vehicle'))
   },
 
   subscribeToVehicleUpdates(cb: (vehicles: Vehicle[]) => void, intervalMs = 2000): () => void {

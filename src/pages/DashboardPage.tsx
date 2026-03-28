@@ -38,16 +38,22 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<DispatchSummary | null>(null)
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
     async function load() {
-      const [s, i] = await Promise.all([
-        dispatchService.getDispatchSummary(),
-        incidentService.getIncidents(),
-      ])
-      setSummary(s)
-      setIncidents(i)
-      setLoading(false)
+      try {
+        const [s, i] = await Promise.all([
+          dispatchService.getDispatchSummary(),
+          incidentService.getIncidents(),
+        ])
+        setSummary(s)
+        setIncidents(i)
+      } catch (err) {
+        setLoadError(err instanceof Error ? err.message : 'Failed to load dashboard data.')
+      } finally {
+        setLoading(false)
+      }
     }
     load()
 
@@ -71,6 +77,14 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Load error */}
+      {loadError && (
+        <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl px-4 py-3 text-sm">
+          <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+          <span>{loadError}</span>
+        </div>
+      )}
+
       {/* Unauthorised notice */}
       {unauthorised && (
         <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl px-4 py-3 text-sm">

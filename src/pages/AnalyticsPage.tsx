@@ -37,16 +37,23 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsOverview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   useEffect(() => {
-    analyticsService.getAnalyticsOverview().then((d) => {
-      setData(d)
-      setLoading(false)
-    })
+    analyticsService.getAnalyticsOverview()
+      .then((d) => { setData(d) })
+      .catch((err) => { setLoadError(err instanceof Error ? err.message : 'Failed to load analytics.') })
+      .finally(() => setLoading(false))
   }, [])
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {loadError && (
+        <div className="flex items-center gap-3 bg-red-500/10 border border-red-500/20 text-red-400 rounded-xl px-4 py-3 text-sm">
+          <BarChart3 className="w-4 h-4 flex-shrink-0" />
+          <span>{loadError}</span>
+        </div>
+      )}
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {loading ? (
