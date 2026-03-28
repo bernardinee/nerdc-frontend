@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/auth/:path*",
+      "destination": "https://auth-service-production-622a.up.railway.app/:path*"
+    },
+    {
+      "source": "/api/incidents/:path*",
+      "destination": "https://incident-service-production-9dd1.up.railway.app/:path*"
+    },
+    {
+      "source": "/api/dispatch/:path*",
+      "destination": "https://dispatch-service-production-bd20.up.railway.app/:path*"
+    },
+    {
+      "source": "/api/analytics/:path*",
+      "destination": "https://analytics-service-production-7584.up.railway.app/:path*"
+    }
+  ]
+}
