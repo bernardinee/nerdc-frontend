@@ -57,23 +57,28 @@ export const dispatchService = {
       return { openIncidents: open, dispatchedIncidents: dispatched, activeVehicles, resolvedIncidents: resolved, avgResponseTimeMinutes: avgResponseTime }
     }
 
-    // Live: combine analytics summary + vehicle list
-    const [summaryRes, vehicleRes] = await Promise.all([
-      ANALYTICS_BASE ? authFetch(ANALYTICS_BASE, '/analytics/summary') : Promise.resolve(null),
-      DISPATCH_BASE  ? authFetch(DISPATCH_BASE, '/vehicles')            : Promise.resolve(null),
+    // Live: combine open incidents + vehicles + analytics response-times
+    const [incidentRes, vehicleRes, rtRes] = await Promise.all([
+      INCIDENT_BASE  ? authFetch(INCIDENT_BASE,  '/incidents/open')             : Promise.resolve(null),
+      DISPATCH_BASE  ? authFetch(DISPATCH_BASE,  '/vehicles')                   : Promise.resolve(null),
+      ANALYTICS_BASE ? authFetch(ANALYTICS_BASE, '/analytics/response-times')  : Promise.resolve(null),
     ])
 
-    const summary  = summaryRes?.ok  ? await summaryRes.json()  : {}
-    const vehicles = vehicleRes?.ok  ? await vehicleRes.json()  : []
+    const incidents: { status: string }[] = incidentRes?.ok ? await incidentRes.json() : []
+    const vehicles:  { status: string }[] = vehicleRes?.ok  ? await vehicleRes.json()  : []
+    const rt = rtRes?.ok ? await rtRes.json() : {}
 
-    const activeVehicles = vehicles.filter((v: { status: string }) => v.status === 'ON_DUTY').length
-    const avgSecs = summary.average_response_time_seconds ?? 0
+    const openIncidents       = incidents.length  // /incidents/open only returns non-resolved
+    const dispatchedIncidents = incidents.filter((i) => ['DISPATCHED', 'IN_PROGRESS'].includes(i.status)).length
+    const activeVehicles      = vehicles.filter((v) => v.status === 'ON_DUTY').length
+    const resolvedIncidents   = rt.total_resolved ?? 0
+    const avgSecs             = rt.average_seconds ?? 0
 
     return {
-      openIncidents:         (summary.total_incidents ?? 0) - (summary.total_resolved ?? 0),
-      dispatchedIncidents:   activeVehicles,
+      openIncidents,
+      dispatchedIncidents,
       activeVehicles,
-      resolvedIncidents:     summary.total_resolved ?? 0,
+      resolvedIncidents,
       avgResponseTimeMinutes: Math.round(avgSecs / 60),
     }
   },

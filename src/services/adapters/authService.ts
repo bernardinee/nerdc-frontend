@@ -235,11 +235,14 @@ export const authService = {
       name:       payload.name,
       email:      payload.email,
       password:   payload.password,
-      role:       payload.role.toUpperCase(),
+      role:       payload.role === 'fire_admin' ? 'FIRE_SERVICE_ADMIN' : payload.role.toUpperCase(),
       station_id: payload.organization ?? '',
     })
     if (!res.ok) throw new Error(await extractError(res, 'Registration failed.'))
-    const tokens: AuthTokens = await res.json()
+    // Register returns UserProfile (no tokens) — auto-login to get tokens
+    const loginRes = await livePost('/auth/login', { email: payload.email, password: payload.password })
+    if (!loginRes.ok) throw new Error('Registered successfully but could not sign in automatically. Please log in.')
+    const tokens: AuthTokens = await loginRes.json()
     saveTokens(tokens)
     const admin = await this.fetchMe()
     localStorage.setItem(KEY_USER, JSON.stringify(admin))
@@ -257,9 +260,6 @@ export const authService = {
   // ── Logout ─────────────────────────────────────────────────────────────────
 
   async logout(): Promise<void> {
-    if (!IS_MOCK) {
-      try { await liveAuthFetch('/auth/logout', { method: 'POST' }) } catch { /* best-effort */ }
-    }
     clearSession()
   },
 

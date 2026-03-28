@@ -284,14 +284,34 @@ export const incidentService = {
   },
 
   // PUT /incidents/:id/assign
-  async assignIncident(incidentId: string, vehicleId: string): Promise<Incident> {
-    await sleep(400)
-    incidentStore.update(incidentId, {
-      assignedVehicleId: vehicleId,
-      status: 'dispatched',
-      updatedAt: new Date().toISOString(),
+  async assignIncident(incidentId: string, vehicleId: string, vehicleType?: string): Promise<Incident> {
+    if (IS_MOCK) {
+      await sleep(400)
+      incidentStore.update(incidentId, {
+        assignedVehicleId: vehicleId,
+        status: 'dispatched',
+        updatedAt: new Date().toISOString(),
+      })
+      return incidentStore.getById(incidentId)!
+    }
+
+    // Map frontend vehicle type to backend enum
+    const VTYPE_TO_BACKEND: Record<string, string> = {
+      ambulance:  'AMBULANCE',
+      fire_truck: 'FIRE_TRUCK',
+      police:     'POLICE',
+      rescue:     'AMBULANCE',  // fallback
+      command:    'POLICE',     // fallback
+    }
+    const res = await authFetch(`/incidents/${incidentId}/assign`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        assigned_unit_id:   vehicleId,
+        assigned_unit_type: VTYPE_TO_BACKEND[vehicleType ?? 'ambulance'] ?? 'AMBULANCE',
+      }),
     })
-    return incidentStore.getById(incidentId)!
+    if (!res.ok) throw new Error(`Failed to assign vehicle (HTTP ${res.status})`)
+    return normaliseIncident(await res.json())
   },
 
   subscribeToIncidents(fn: (incidents: Incident[]) => void) {

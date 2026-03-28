@@ -14,15 +14,28 @@ import { authService } from './authService'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
-const DISPATCH_BASE = (import.meta.env.VITE_DISPATCH_URL as string | undefined)?.trim() ?? ''
-const WS_BASE       = (import.meta.env.VITE_WS_URL as string | undefined)?.trim() ?? ''
-const IS_MOCK       = DISPATCH_BASE === ''
+const DISPATCH_BASE  = (import.meta.env.VITE_DISPATCH_URL as string | undefined)?.trim() ?? ''
+const INCIDENT_BASE  = (import.meta.env.VITE_INCIDENT_URL as string | undefined)?.trim() ?? ''
+const WS_BASE        = (import.meta.env.VITE_WS_URL as string | undefined)?.trim() ?? ''
+const IS_MOCK        = DISPATCH_BASE === ''
 
-// ─── Live fetch helper ────────────────────────────────────────────────────────
+// ─── Live fetch helpers ───────────────────────────────────────────────────────
 
 async function authFetch(path: string, init: RequestInit = {}): Promise<Response> {
   const token = authService.getToken()
   return fetch(`${DISPATCH_BASE}${path}`, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(init.headers ?? {}),
+    },
+  })
+}
+
+async function incidentFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  const token = authService.getToken()
+  return fetch(`${INCIDENT_BASE}${path}`, {
     ...init,
     headers: {
       'Content-Type': 'application/json',
@@ -186,128 +199,123 @@ export const vehicleService = {
 
   /**
    * Dispatch a vehicle to an incident.
-   * Updates vehicle status → en_route, links incident, fires a radio message.
-   * PUT /incidents/:id/assign
+   * Live: PUT /vehicles/:id/status + PUT /incidents/:id/assign
    */
   async dispatchVehicle(vehicleId: string, incidentId: string): Promise<void> {
-    await sleep(500)
+    if (IS_MOCK) {
+      await sleep(500)
+      const vehicle = vehicleStore.getById(vehicleId)
+      const incident = incidentStore.getById(incidentId)
+      if (!vehicle || !incident) throw new Error('Vehicle or incident not found.')
+      if (vehicle.status === 'offline') throw new Error('Cannot dispatch an offline unit.')
 
-    const vehicle = vehicleStore.getById(vehicleId)
-    const incident = incidentStore.getById(incidentId)
-    if (!vehicle || !incident) throw new Error('Vehicle or incident not found.')
-    if (vehicle.status === 'offline') throw new Error('Cannot dispatch an offline unit.')
+      vehicleStore.update(vehicleId, {
+        status: 'en_route',
+        assignedIncidentId: incidentId,
+        speed: Math.round(60 + Math.random() * 30),
+        heading: Math.round(Math.random() * 360),
+      })
+      incidentStore.update(incidentId, { status: 'dispatched', assignedVehicleId: vehicleId })
 
-    // Update vehicle
-    vehicleStore.update(vehicleId, {
-      status: 'en_route',
-      assignedIncidentId: incidentId,
-      speed: Math.round(60 + Math.random() * 30),
-      heading: Math.round(Math.random() * 360),
-    })
-
-    // Update incident
-    incidentStore.update(incidentId, {
-      status: 'dispatched',
-      assignedVehicleId: vehicleId,
-    })
-
-    // Auto radio message
-    const eta = Math.round(4 + Math.random() * 10)
-    messageStore.add({
-      id: `MSG-${generateId()}`,
-      fromId: 'COMMAND',
-      fromName: 'NERDC Command',
-      toId: vehicleId,
-      toName: vehicle.callSign,
-      content: `${vehicle.callSign}, you are dispatched to ${incidentId} — ${incident.location.address}. Proceed immediately. ETA estimate ${eta} minutes.`,
-      type: 'command',
-      channel: vehicle.channel,
-      timestamp: new Date().toISOString(),
-      acknowledged: false,
-      direction: 'outbound',
-    })
-
-    // Vehicle acknowledges after a short delay
-    setTimeout(() => {
-      const v = vehicleStore.getById(vehicleId)
-      if (!v) return
+      const eta = Math.round(4 + Math.random() * 10)
       messageStore.add({
         id: `MSG-${generateId()}`,
-        fromId: vehicleId,
-        fromName: vehicle.callSign,
-        toId: 'COMMAND',
-        toName: 'NERDC Command',
-        content: `${vehicle.callSign} copies. En route to ${incidentId}. ETA ${eta} minutes. Over.`,
-        type: 'acknowledgment',
-        channel: vehicle.channel,
-        timestamp: new Date().toISOString(),
-        acknowledged: true,
-        direction: 'inbound',
+        fromId: 'COMMAND', fromName: 'NERDC Command',
+        toId: vehicleId, toName: vehicle.callSign,
+        content: `${vehicle.callSign}, you are dispatched to ${incidentId} — ${incident.location.address}. Proceed immediately. ETA estimate ${eta} minutes.`,
+        type: 'command', channel: vehicle.channel,
+        timestamp: new Date().toISOString(), acknowledged: false, direction: 'outbound',
       })
-    }, 2500 + Math.random() * 2000)
+      setTimeout(() => {
+        const v = vehicleStore.getById(vehicleId)
+        if (!v) return
+        messageStore.add({
+          id: `MSG-${generateId()}`,
+          fromId: vehicleId, fromName: vehicle.callSign,
+          toId: 'COMMAND', toName: 'NERDC Command',
+          content: `${vehicle.callSign} copies. En route to ${incidentId}. ETA ${eta} minutes. Over.`,
+          type: 'acknowledgment', channel: vehicle.channel,
+          timestamp: new Date().toISOString(), acknowledged: true, direction: 'inbound',
+        })
+      }, 2500 + Math.random() * 2000)
+      return
+    }
+
+    // Live: mark vehicle ON_DUTY
+    const statusRes = await authFetch(`/vehicles/${vehicleId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'ON_DUTY', incident_id: incidentId }),
+    })
+    if (!statusRes.ok) throw new Error(`Failed to dispatch vehicle (HTTP ${statusRes.status})`)
+
+    // Assign vehicle to incident (best-effort — incident service may auto-assign)
+    if (INCIDENT_BASE) {
+      const vehicle = await this.getVehicleById(vehicleId)
+      const VTYPE_TO_BACKEND: Record<string, string> = {
+        ambulance: 'AMBULANCE', fire_truck: 'FIRE_TRUCK', police: 'POLICE',
+        rescue: 'AMBULANCE', command: 'POLICE',
+      }
+      await incidentFetch(`/incidents/${incidentId}/assign`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          assigned_unit_id:   vehicleId,
+          assigned_unit_type: VTYPE_TO_BACKEND[vehicle?.type ?? 'ambulance'] ?? 'AMBULANCE',
+        }),
+      })
+    }
   },
 
   /**
    * Recall a dispatched vehicle back to base.
-   * POST /vehicles/:id/recall
+   * Live: PUT /vehicles/:id/status → AVAILABLE
    */
   async recallVehicle(vehicleId: string): Promise<void> {
-    await sleep(400)
+    if (IS_MOCK) {
+      await sleep(400)
+      const vehicle = vehicleStore.getById(vehicleId)
+      if (!vehicle) throw new Error('Vehicle not found.')
+      const previousIncidentId = vehicle.assignedIncidentId
 
-    const vehicle = vehicleStore.getById(vehicleId)
-    if (!vehicle) throw new Error('Vehicle not found.')
+      vehicleStore.update(vehicleId, {
+        status: 'returning', assignedIncidentId: undefined,
+        speed: Math.round(40 + Math.random() * 20),
+        heading: Math.round(Math.random() * 360),
+      })
 
-    const previousIncidentId = vehicle.assignedIncidentId
-
-    // Free the vehicle
-    vehicleStore.update(vehicleId, {
-      status: 'returning',
-      assignedIncidentId: undefined,
-      speed: Math.round(40 + Math.random() * 20),
-      heading: Math.round(Math.random() * 360),
-    })
-
-    // Revert incident to pending if it was only dispatched (not in_progress)
-    if (previousIncidentId) {
-      const incident = incidentStore.getById(previousIncidentId)
-      if (incident && incident.status === 'dispatched') {
-        incidentStore.update(previousIncidentId, {
-          status: 'pending',
-          assignedVehicleId: undefined,
-        })
+      if (previousIncidentId) {
+        const incident = incidentStore.getById(previousIncidentId)
+        if (incident && incident.status === 'dispatched') {
+          incidentStore.update(previousIncidentId, { status: 'pending', assignedVehicleId: undefined })
+        }
       }
-    }
 
-    // Radio message
-    messageStore.add({
-      id: `MSG-${generateId()}`,
-      fromId: 'COMMAND',
-      fromName: 'NERDC Command',
-      toId: vehicleId,
-      toName: vehicle.callSign,
-      content: `${vehicle.callSign}, you are recalled. Return to base and stand by.`,
-      type: 'command',
-      channel: vehicle.channel,
-      timestamp: new Date().toISOString(),
-      acknowledged: false,
-      direction: 'outbound',
-    })
-
-    setTimeout(() => {
       messageStore.add({
         id: `MSG-${generateId()}`,
-        fromId: vehicleId,
-        fromName: vehicle.callSign,
-        toId: 'COMMAND',
-        toName: 'NERDC Command',
-        content: `${vehicle.callSign} returning to base. Copy.`,
-        type: 'acknowledgment',
-        channel: vehicle.channel,
-        timestamp: new Date().toISOString(),
-        acknowledged: true,
-        direction: 'inbound',
+        fromId: 'COMMAND', fromName: 'NERDC Command',
+        toId: vehicleId, toName: vehicle.callSign,
+        content: `${vehicle.callSign}, you are recalled. Return to base and stand by.`,
+        type: 'command', channel: vehicle.channel,
+        timestamp: new Date().toISOString(), acknowledged: false, direction: 'outbound',
       })
-    }, 1800 + Math.random() * 1500)
+      setTimeout(() => {
+        messageStore.add({
+          id: `MSG-${generateId()}`,
+          fromId: vehicleId, fromName: vehicle.callSign,
+          toId: 'COMMAND', toName: 'NERDC Command',
+          content: `${vehicle.callSign} returning to base. Copy.`,
+          type: 'acknowledgment', channel: vehicle.channel,
+          timestamp: new Date().toISOString(), acknowledged: true, direction: 'inbound',
+        })
+      }, 1800 + Math.random() * 1500)
+      return
+    }
+
+    // Live: mark vehicle AVAILABLE
+    const res = await authFetch(`/vehicles/${vehicleId}/status`, {
+      method: 'PUT',
+      body: JSON.stringify({ status: 'AVAILABLE', incident_id: null }),
+    })
+    if (!res.ok) throw new Error(`Failed to recall vehicle (HTTP ${res.status})`)
   },
 
   subscribeToVehicleUpdates(cb: (vehicles: Vehicle[]) => void, intervalMs = 2000): () => void {
