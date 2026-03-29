@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { analyticsService } from '@/services/adapters/analyticsService'
 import type { AnalyticsOverview } from '@/types'
 import { GlassCard } from '@/components/ui/GlassCard'
@@ -8,7 +8,7 @@ import { EmptyState } from '@/components/ui/EmptyState'
 import { StatCard } from '@/components/ui/StatCard'
 import {
   CheckCircle2, Clock, AlertTriangle, TrendingUp,
-  BarChart3,
+  BarChart3, RefreshCw,
 } from 'lucide-react'
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -37,14 +37,29 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 export default function AnalyticsPage() {
   const [data, setData] = useState<AnalyticsOverview | null>(null)
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  useEffect(() => {
-    analyticsService.getAnalyticsOverview()
-      .then((d) => { setData(d) })
-      .catch((err) => { setLoadError(err instanceof Error ? err.message : 'Failed to load analytics.') })
-      .finally(() => setLoading(false))
+  const fetchData = useCallback(async (showSpinner = false) => {
+    if (showSpinner) setRefreshing(true)
+    try {
+      const d = await analyticsService.getAnalyticsOverview()
+      setData(d)
+      setLoadError(null)
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load analytics.')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
   }, [])
+
+  useEffect(() => {
+    fetchData()
+    // Auto-refresh every 60s so counts stay current after incident status changes
+    const timer = setInterval(() => fetchData(), 60_000)
+    return () => clearInterval(timer)
+  }, [fetchData])
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -54,6 +69,21 @@ export default function AnalyticsPage() {
           <span>{loadError}</span>
         </div>
       )}
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-bold text-white">Analytics</h1>
+          <p className="text-xs text-slate-500 mt-0.5">Auto-refreshes every 60 seconds</p>
+        </div>
+        <button
+          onClick={() => fetchData(true)}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white text-xs font-medium transition-all disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {loading ? (

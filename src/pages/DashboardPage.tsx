@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   AlertTriangle, Radio, Truck, CheckCircle2, Clock,
-  FilePlus, ChevronRight, Activity, ShieldOff,
+  FilePlus, ChevronRight, Activity, ShieldOff, RefreshCw,
 } from 'lucide-react'
 import { StatCard } from '@/components/ui/StatCard'
 import { GlassCard } from '@/components/ui/GlassCard'
@@ -38,23 +38,28 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<DispatchSummary | null>(null)
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [loadError, setLoadError] = useState<string | null>(null)
 
-  useEffect(() => {
-    async function load() {
-      try {
-        const [s, i] = await Promise.all([
-          dispatchService.getDispatchSummary(),
-          incidentService.getIncidents(),
-        ])
-        setSummary(s)
-        setIncidents(i)
-      } catch (err) {
-        setLoadError(err instanceof Error ? err.message : 'Failed to load dashboard data.')
-      } finally {
-        setLoading(false)
-      }
+  async function load(showSpinner = false) {
+    if (showSpinner) setRefreshing(true)
+    try {
+      const [s, i] = await Promise.all([
+        dispatchService.getDispatchSummary(),
+        incidentService.getIncidents(),
+      ])
+      setSummary(s)
+      setIncidents(i)
+      setLoadError(null)
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : 'Failed to load dashboard data.')
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
     }
+  }
+
+  useEffect(() => {
     load()
 
     // Live updates when incidents change
@@ -64,6 +69,7 @@ export default function DashboardPage() {
       setSummary(s)
     })
     return unsub
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Pie data from incidents
@@ -100,6 +106,17 @@ export default function DashboardPage() {
       )}
 
       {/* KPI row */}
+      <div className="flex items-center justify-between mb-0">
+        <h1 className="text-xl font-bold text-white">Dashboard</h1>
+        <button
+          onClick={() => load(true)}
+          disabled={refreshing}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 border border-white/10 text-slate-400 hover:text-white text-xs font-medium transition-all disabled:opacity-50"
+        >
+          <RefreshCw className={`w-3.5 h-3.5 ${refreshing ? 'animate-spin' : ''}`} />
+          Refresh
+        </button>
+      </div>
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {loading ? (
           Array.from({ length: 5 }).map((_, i) => <CardSkeleton key={i} />)
