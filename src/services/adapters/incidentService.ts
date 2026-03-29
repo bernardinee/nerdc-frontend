@@ -13,7 +13,7 @@
  *   assignIncident(id, vehId)   PUT  /incidents/:id/assign
  */
 
-import type { CreateIncidentPayload, Incident, IncidentStatus, IncidentType, VehicleType } from '@/types'
+import type { CreateIncidentPayload, Incident, IncidentSeverity, IncidentStatus, IncidentType, VehicleType } from '@/types'
 import { incidentStore, vehicleStore, messageStore } from '../mocks/mockStore'
 import { sleep, generateId } from '@/lib/utils'
 import { apiFetch, extractApiError } from '../apiClient'
