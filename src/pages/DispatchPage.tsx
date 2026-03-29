@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   AlertTriangle, CheckCircle2, Radio, Truck, Clock,
-  RefreshCw, ChevronDown, Zap, X, Plus,
+  RefreshCw, ChevronDown, Zap, X, Plus, MapPin,
 } from 'lucide-react'
 import { StatCard } from '@/components/ui/StatCard'
 import { GlassCard } from '@/components/ui/GlassCard'
@@ -210,17 +210,36 @@ export default function DispatchPage() {
                 >
                   {/* Incident info */}
                   <div className="flex items-start gap-3 min-w-0 flex-1">
-                    <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center text-lg flex-shrink-0">
+                    <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center text-lg flex-shrink-0 mt-0.5">
                       {TYPE_ICONS[inc.type]}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                      {/* Row 1: ID + badges */}
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
                         <span className="font-mono text-[11px] text-slate-500">{inc.id}</span>
-                        {inc.severity && <StatusBadge type="severity" value={inc.severity} />}
                         <StatusBadge type="incident-status" value={inc.status} />
+                        {inc.severity
+                          ? <StatusBadge type="severity" value={inc.severity} />
+                          : <span className="px-1.5 py-0.5 rounded text-[10px] bg-slate-500/10 text-slate-500 border border-slate-500/20">No severity</span>
+                        }
                       </div>
-                      <p className="text-sm font-semibold text-white truncate">{inc.citizenName}</p>
-                      <p className="text-xs text-slate-400 truncate">{inc.location.address}</p>
+                      {/* Row 2: Caller + type */}
+                      <p className="text-sm font-semibold text-white">
+                        {inc.citizenName}
+                        {inc.citizenPhone && <span className="text-slate-400 font-normal text-xs ml-2">{inc.citizenPhone}</span>}
+                      </p>
+                      {/* Row 3: Location — prominent */}
+                      <div className="flex items-center gap-1 mt-0.5 mb-1">
+                        <MapPin className="w-3 h-3 text-cyan-400 flex-shrink-0" />
+                        <p className="text-xs text-cyan-300 font-medium truncate">{inc.location.address || 'Location not specified'}</p>
+                        {inc.location.region && <span className="text-[10px] text-slate-500 flex-shrink-0">· {inc.location.region}</span>}
+                      </div>
+                      {/* Row 4: Notes */}
+                      {inc.notes && (
+                        <p className="text-[11px] text-slate-400 line-clamp-2 leading-relaxed border-l-2 border-slate-600/50 pl-2 mt-1">
+                          {inc.notes}
+                        </p>
+                      )}
 
                       {/* All assigned vehicles */}
                       {(() => {

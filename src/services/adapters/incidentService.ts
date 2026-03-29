@@ -59,6 +59,14 @@ const STATUS_FROM_BACKEND: Record<string, string> = {
   RESOLVED:    'resolved',
 }
 
+const SEVERITY_FROM_BACKEND: Record<string, string> = {
+  LOW: 'low', MEDIUM: 'medium', HIGH: 'high', CRITICAL: 'critical',
+}
+
+const SEVERITY_TO_BACKEND: Record<string, string> = {
+  low: 'LOW', medium: 'MEDIUM', high: 'HIGH', critical: 'CRITICAL',
+}
+
 const STATUS_TO_BACKEND: Record<string, string> = {
   created:     'CREATED',
   pending:     'CREATED',
@@ -74,19 +82,22 @@ function normaliseIncident(data: any): Incident {
   return {
     id:               data.id,
     citizenName:      data.citizen_name,
+    citizenPhone:     data.citizen_phone ?? undefined,
     type:             (TYPE_FROM_BACKEND[data.incident_type] ?? data.incident_type?.toLowerCase() ?? 'other') as IncidentType,
+    severity:         (SEVERITY_FROM_BACKEND[data.severity] ?? data.severity?.toLowerCase() ?? undefined) as IncidentSeverity | undefined,
     status:           (STATUS_FROM_BACKEND[data.status] ?? data.status?.toLowerCase() ?? 'created') as IncidentStatus,
     location: {
-      lat:     data.latitude,
-      lng:     data.longitude,
-      address: data.address ?? '',
-      region:  data.region ?? '',
+      lat:     data.latitude ?? data.location?.lat ?? 5.6037,
+      lng:     data.longitude ?? data.location?.lng ?? -0.187,
+      address: data.address ?? data.location?.address ?? '',
+      region:  data.region  ?? data.location?.region  ?? '',
     },
     notes:            data.notes ?? '',
     createdBy:        data.created_by ?? '',
     assignedVehicleId: data.assigned_unit_id ?? undefined,
     createdAt:        data.created_at,
     updatedAt:        data.updated_at,
+    resolvedAt:       data.resolved_at ?? undefined,
   }
 }
 
@@ -246,9 +257,13 @@ export const incidentService = {
       method: 'POST',
       body: JSON.stringify({
         citizen_name:  payload.citizenName,
+        citizen_phone: payload.citizenPhone || null,
         incident_type: TYPE_TO_BACKEND[payload.type] ?? 'OTHER',
+        severity:      payload.severity ? SEVERITY_TO_BACKEND[payload.severity] : null,
         latitude:      payload.location.lat,
         longitude:     payload.location.lng,
+        address:       payload.location.address || null,
+        region:        payload.location.region  || null,
         notes:         payload.notes || null,
       }),
     })
