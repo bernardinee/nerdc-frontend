@@ -13,6 +13,7 @@ import { incidentStore, vehicleStore } from '../mocks/mockStore'
 import { sleep } from '@/lib/utils'
 import { subDays, format } from 'date-fns'
 import { apiFetch } from '../apiClient'
+import { sessionAvgResponseTime } from './dispatchService'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -142,8 +143,8 @@ export const analyticsService = {
     const openCount     = Array.isArray(openList) ? openList.length : 0
     const totalIncidents = openCount + resolvedCount
 
-    // Response times
-    const avgResponseTime = Math.round((rt.average_seconds ?? 0) / 60)
+    // Response times — use analytics avg if available, fall back to session data
+    const avgResponseTime = Math.round((rt.average_seconds ?? 0) / 60) || sessionAvgResponseTime()
 
     // Incidents by type — built from the real incident list (accurate)
     const typeCounts: Record<string, number> = {}

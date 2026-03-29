@@ -14,6 +14,22 @@ const INCIDENT_BASE  = (import.meta.env.VITE_INCIDENT_URL as string | undefined)
 const DISPATCH_BASE  = (import.meta.env.VITE_DISPATCH_URL as string | undefined)?.trim() ?? ''
 const IS_MOCK = INCIDENT_BASE === '' && DISPATCH_BASE === ''
 
+// ─── Session response-time collector ─────────────────────────────────────────
+// Collects response times (minutes) from incidents resolved in this browser
+// session, used as a client-side fallback when the analytics backend returns 0.
+
+const sessionResponseTimes: number[] = []
+
+export function recordResolutionTime(createdAtIso: string) {
+  const minutes = Math.round((Date.now() - new Date(createdAtIso).getTime()) / 60000)
+  if (minutes > 0) sessionResponseTimes.push(minutes)
+}
+
+export function sessionAvgResponseTime(): number {
+  if (sessionResponseTimes.length === 0) return 0
+  return Math.round(sessionResponseTimes.reduce((a, b) => a + b, 0) / sessionResponseTimes.length)
+}
+
 // ─── Public service ───────────────────────────────────────────────────────────
 
 export const dispatchService = {
@@ -59,15 +75,17 @@ export const dispatchService = {
     const openIncidents       = incidents.length  // /incidents/open only returns non-resolved
     const dispatchedIncidents = incidents.filter((i) => ['DISPATCHED', 'IN_PROGRESS'].includes(i.status)).length
     const activeVehicles      = vehicles.filter((v) => v.status === 'ON_DUTY').length
-    const resolvedIncidents   = rt.total_resolved ?? 0
-    const avgSecs             = rt.average_seconds ?? 0
+    const resolvedIncidents = rt.total_resolved ?? 0
+    const analyticsAvg      = Math.round((rt.average_seconds ?? 0) / 60)
+    // Use analytics avg if available, fall back to session-collected times
+    const avgResponseTimeMinutes = analyticsAvg || sessionAvgResponseTime()
 
     return {
       openIncidents,
       dispatchedIncidents,
       activeVehicles,
       resolvedIncidents,
-      avgResponseTimeMinutes: Math.round(avgSecs / 60),
+      avgResponseTimeMinutes,
     }
   },
 }

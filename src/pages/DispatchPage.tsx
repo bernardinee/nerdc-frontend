@@ -10,7 +10,7 @@ import { SectionHeader } from '@/components/ui/SectionHeader'
 import { CardSkeleton } from '@/components/ui/LoadingSkeleton'
 import { EmptyState } from '@/components/ui/EmptyState'
 import { DispatchModal } from '@/components/ui/DispatchModal'
-import { dispatchService } from '@/services/adapters/dispatchService'
+import { dispatchService, recordResolutionTime } from '@/services/adapters/dispatchService'
 import { incidentService } from '@/services/adapters/incidentService'
 import { vehicleService } from '@/services/adapters/vehicleService'
 import type { DispatchSummary, Incident, IncidentStatus, Vehicle } from '@/types'
@@ -86,7 +86,27 @@ export default function DispatchPage() {
   async function updateStatus(id: string, status: IncidentStatus) {
     setUpdatingId(id)
     try {
+      // Capture incident before updating (needed for response-time calculation)
+      const incident = incidents.find((i) => i.id === id)
+
       await incidentService.updateIncidentStatus(id, status)
+
+      if (status === 'resolved') {
+        // Record response time for analytics (createdAt → now)
+        if (incident?.createdAt) {
+          recordResolutionTime(incident.createdAt)
+        }
+        // Auto-recall all active units assigned to this incident
+        const assigned = vehicles.filter(
+          (v) => v.assignedIncidentId === id &&
+            ['dispatched', 'en_route', 'on_scene'].includes(v.status)
+        )
+        if (assigned.length > 0) {
+          await Promise.allSettled(assigned.map((v) => vehicleService.recallVehicle(v.id)))
+          toast.success(`${assigned.length} unit${assigned.length > 1 ? 's' : ''} recalled to base`)
+        }
+      }
+
       toast.success(`Incident marked "${status.replace('_', ' ')}"`)
       await load()
     } catch {
