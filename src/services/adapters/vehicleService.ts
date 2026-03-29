@@ -115,6 +115,14 @@ function simulateMovement(vehicle: Vehicle, incidents: Incident[]): Vehicle {
   }
 }
 
+// ─── Frontend dispatch registry ──────────────────────────────────────────────
+//
+// The backend may not immediately reflect current_incident_id on the vehicle
+// record after dispatch. We keep our own map so the animation layer always
+// knows which incident a vehicle is heading to, regardless of backend lag.
+
+const frontendDispatchMap = new Map<string, string>() // vehicleId → incidentId
+
 // ─── Public service ───────────────────────────────────────────────────────────
 
 export const vehicleService = {
@@ -203,6 +211,7 @@ export const vehicleService = {
       body: JSON.stringify({ status: 'ON_DUTY', incident_id: incidentId }),
     })
     if (!res.ok) throw new Error(await extractApiError(res, 'Failed to add unit to incident'))
+    frontendDispatchMap.set(vehicleId, incidentId)
   },
 
   /**
@@ -255,6 +264,9 @@ export const vehicleService = {
       body: JSON.stringify({ status: 'ON_DUTY', incident_id: incidentId }),
     })
     if (!statusRes.ok) throw new Error(await extractApiError(statusRes, 'Failed to dispatch vehicle'))
+
+    // Register in frontend map immediately so animation starts without waiting for backend echo
+    frontendDispatchMap.set(vehicleId, incidentId)
 
     // Assign vehicle to incident (best-effort — incident service may auto-assign)
     if (INCIDENT_BASE) {
@@ -324,6 +336,7 @@ export const vehicleService = {
       body: JSON.stringify({ status: 'AVAILABLE', incident_id: null }),
     })
     if (!res.ok) throw new Error(await extractApiError(res, 'Failed to recall vehicle'))
+    frontendDispatchMap.delete(vehicleId)
   },
 
   subscribeToVehicleUpdates(cb: (vehicles: Vehicle[]) => void, intervalMs = 2000): () => void {
@@ -368,8 +381,12 @@ export const vehicleService = {
         if (!res.ok) return
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const inc: any = await res.json()
-        if (inc.latitude != null && inc.longitude != null) {
-          incidentDestinations.set(inc.id, { lat: inc.latitude, lng: inc.longitude })
+        // Handle multiple backend response formats for coordinates
+        const lat = inc.latitude ?? inc.location?.lat ?? inc.lat
+        const lng = inc.longitude ?? inc.location?.lng ?? inc.lng
+        if (lat != null && lng != null) {
+          // Use incidentId as key (not inc.id) so lookup always works even if backend returns different id format
+          incidentDestinations.set(incidentId, { lat: Number(lat), lng: Number(lng) })
         }
       } catch { /* ignore */ }
     }
@@ -377,12 +394,21 @@ export const vehicleService = {
     // Merge backend ground truth with local animation state
     function applySimulation(backendVehicles: Vehicle[]): Vehicle[] {
       return backendVehicles.map((bv) => {
-        if (bv.status !== 'en_route' || !bv.assignedIncidentId) {
+        // Accept en_route OR dispatched (in case backend returns different status string)
+        const isActive = bv.status === 'en_route' || bv.status === 'dispatched'
+        // Prefer backend's assignedIncidentId; fall back to our own dispatch registry
+        const incidentId = bv.assignedIncidentId ?? frontendDispatchMap.get(bv.id)
+
+        if (!isActive || !incidentId) {
           localState.delete(bv.id)
+          // If vehicle was recalled (status available/offline), remove from frontend map
+          if (bv.status === 'available' || bv.status === 'offline') {
+            frontendDispatchMap.delete(bv.id)
+          }
           return bv
         }
 
-        const dest = incidentDestinations.get(bv.assignedIncidentId)
+        const dest = incidentDestinations.get(incidentId)
         if (!dest) return bv
 
         // Initialise local state from backend position on first sight
@@ -401,13 +427,14 @@ export const vehicleService = {
         // Build a synthetic incident so simulateMovement can compute bearing
         const syntheticIncident: Incident = {
           ...({} as Incident),
-          id: bv.assignedIncidentId,
+          id: incidentId,
           location: { lat: dest.lat, lng: dest.lng, address: '', region: '' },
         }
 
         const animated = simulateMovement(
           {
             ...bv,
+            assignedIncidentId: incidentId,   // ensure lookup matches synthetic incident
             coordinates: { lat: local.lat, lng: local.lng },
             speed:   local.speed,
             heading: local.heading,
@@ -436,22 +463,32 @@ export const vehicleService = {
         if (!res.ok) return
         lastBackendVehicles = (await res.json()).map(normaliseVehicle)
 
-        // For every ON_DUTY vehicle, ensure we have its incident's coordinates.
-        // Fetch by individual ID so it works regardless of incident status
-        // (DISPATCHED incidents no longer appear in /incidents/open).
+        // For every active vehicle, ensure we have its incident's coordinates.
+        // Use backend's current_incident_id OR our frontend dispatch registry as fallback.
+        const activeVehicles = lastBackendVehicles.filter(
+          (v) => v.status === 'en_route' || v.status === 'dispatched'
+        )
         const activeIncidentIds = [
           ...new Set(
-            lastBackendVehicles
-              .filter((v) => v.status === 'en_route' && v.assignedIncidentId)
-              .map((v) => v.assignedIncidentId!)
+            activeVehicles
+              .map((v) => v.assignedIncidentId ?? frontendDispatchMap.get(v.id))
+              .filter(Boolean) as string[]
           ),
         ]
+        // Also include any incidents in frontendDispatchMap whose vehicles haven't been polled yet
+        for (const [, incId] of frontendDispatchMap) {
+          if (!activeIncidentIds.includes(incId)) activeIncidentIds.push(incId)
+        }
         await Promise.all(activeIncidentIds.map(ensureDestination))
 
-        // Clean up destinations for incidents no longer active
+        // Clean up destinations that are genuinely no longer needed
+        // (only remove if not in frontendDispatchMap either)
+        const frontendIncidentIds = new Set(frontendDispatchMap.values())
         const activeSet = new Set(activeIncidentIds)
         for (const id of incidentDestinations.keys()) {
-          if (!activeSet.has(id)) incidentDestinations.delete(id)
+          if (!activeSet.has(id) && !frontendIncidentIds.has(id)) {
+            incidentDestinations.delete(id)
+          }
         }
 
         // WebSocket for each active vehicle (real GPS if driver has app)

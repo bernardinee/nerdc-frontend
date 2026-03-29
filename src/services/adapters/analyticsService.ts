@@ -17,12 +17,17 @@ import { apiFetch } from '../apiClient'
 // ─── Config ───────────────────────────────────────────────────────────────────
 
 const ANALYTICS_BASE = (import.meta.env.VITE_ANALYTICS_URL as string | undefined)?.trim() ?? ''
+const INCIDENT_BASE   = (import.meta.env.VITE_INCIDENT_URL  as string | undefined)?.trim() ?? ''
 const IS_MOCK_ANALYTICS = ANALYTICS_BASE === ''
 
-// ─── Live fetch helper ────────────────────────────────────────────────────────
+// ─── Live fetch helpers ───────────────────────────────────────────────────────
 
 function authFetch(path: string) {
   return apiFetch(ANALYTICS_BASE, path)
+}
+
+function incidentFetch(path: string) {
+  return apiFetch(INCIDENT_BASE, path)
 }
 
 // ─── Public service ───────────────────────────────────────────────────────────
@@ -117,26 +122,39 @@ export const analyticsService = {
     }
 
     // Live mode
-    const [rtRes, regionRes, utilRes] = await Promise.all([
+    const [rtRes, regionRes, utilRes, openRes] = await Promise.all([
       authFetch('/analytics/response-times'),
       authFetch('/analytics/incidents-by-region'),
       authFetch('/analytics/resource-utilization'),
+      incidentFetch('/incidents/open'),
     ])
 
-    const rt   = await rtRes.json()
-    const regionData: { region: string; incident_type: string; count: number }[] = await regionRes.json()
-    const utilData: { unit_type: string; unit_id: string; total_dispatches: number }[] = await utilRes.json()
+    const rt         = rtRes.ok   ? await rtRes.json()     : {}
+    const regionData: { region: string; incident_type: string; count: number }[]
+                     = regionRes.ok ? await regionRes.json() : []
+    const utilData: { unit_type: string; unit_id: string; total_dispatches: number }[]
+                     = utilRes.ok  ? await utilRes.json()  : []
+    const openList: { id: string; type: string; status: string }[]
+                     = openRes.ok  ? await openRes.json()  : []
+
+    // Total incidents: open/active (from incident service) + resolved (from analytics)
+    const resolvedCount = rt.total_resolved ?? 0
+    const openCount     = Array.isArray(openList) ? openList.length : 0
+    const totalIncidents = openCount + resolvedCount
 
     // Response times
     const avgResponseTime = Math.round((rt.average_seconds ?? 0) / 60)
 
-    // Incidents by type (aggregate from region data)
+    // Incidents by type — built from the real incident list (accurate)
     const typeCounts: Record<string, number> = {}
-    let totalIncidents = 0
+    for (const inc of openList) {
+      const t = inc.type?.toLowerCase() ?? 'other'
+      typeCounts[t] = (typeCounts[t] ?? 0) + 1
+    }
+    // Supplement with region data for any resolved incidents
     for (const r of regionData) {
       const type = r.incident_type?.toLowerCase() ?? 'other'
       typeCounts[type] = (typeCounts[type] ?? 0) + r.count
-      totalIncidents += r.count
     }
     const incidentsByType = Object.entries(typeCounts).map(([type, count]) => ({
       type: type as IncidentType,
@@ -144,7 +162,7 @@ export const analyticsService = {
       percentage: Math.round((count / Math.max(totalIncidents, 1)) * 100),
     }))
 
-    // Incidents by region (aggregate across types)
+    // Incidents by region (from analytics — only populated when region is stored)
     const regionCounts: Record<string, number> = {}
     for (const r of regionData) regionCounts[r.region] = (regionCounts[r.region] ?? 0) + r.count
     const incidentsByRegion = Object.entries(regionCounts).map(([region, count]) => ({ region, count }))
@@ -160,7 +178,7 @@ export const analyticsService = {
       utilizationPct:   Math.min(100, Math.round(u.total_dispatches * 10)),
     }))
 
-    // Flat trend (use single avg across 7 days)
+    // Response time trend across 7 days
     const responseTimeTrend = Array.from({ length: 7 }, (_, i) => {
       const d = subDays(new Date(), 6 - i)
       return {
@@ -173,8 +191,8 @@ export const analyticsService = {
 
     return {
       totalIncidents,
-      resolvedIncidents:  rt.total_resolved ?? 0,
-      resolutionRate:     totalIncidents > 0 ? Math.round(((rt.total_resolved ?? 0) / totalIncidents) * 100) : 0,
+      resolvedIncidents:  resolvedCount,
+      resolutionRate:     totalIncidents > 0 ? Math.round((resolvedCount / totalIncidents) * 100) : 0,
       avgResponseTime,
       incidentsByType,
       incidentsByRegion,
