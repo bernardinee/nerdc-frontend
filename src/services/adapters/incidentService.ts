@@ -75,11 +75,52 @@ const STATUS_TO_BACKEND: Record<string, string> = {
   resolved:    'RESOLVED',
 }
 
+// ─── Local incident enhancement store ────────────────────────────────────────
+// The backend may not persist severity, address, region, or phone.
+// We store them in localStorage keyed by incident ID so the dispatch queue
+// always shows complete information regardless of what the backend returns.
+
+interface IncidentExtras {
+  severity?: string
+  address?: string
+  region?: string
+  citizenPhone?: string
+  notes?: string
+}
+
+const EXTRAS_KEY = 'nerdc_incident_extras'
+
+function loadExtras(): Record<string, IncidentExtras> {
+  try { return JSON.parse(localStorage.getItem(EXTRAS_KEY) ?? '{}') } catch { return {} }
+}
+
+function storeExtras(id: string, extras: IncidentExtras) {
+  const all = loadExtras()
+  all[id] = { ...all[id], ...extras }
+  try { localStorage.setItem(EXTRAS_KEY, JSON.stringify(all)) } catch {}
+}
+
+function mergeExtras(incident: Incident): Incident {
+  const extras = loadExtras()[incident.id]
+  if (!extras) return incident
+  return {
+    ...incident,
+    severity:    (incident.severity    ?? extras.severity)    as IncidentSeverity | undefined,
+    citizenPhone: incident.citizenPhone ?? extras.citizenPhone,
+    notes:        incident.notes        || extras.notes || '',
+    location: {
+      ...incident.location,
+      address: incident.location.address || extras.address || '',
+      region:  incident.location.region  || extras.region  || '',
+    },
+  }
+}
+
 // ─── Normalise backend response → Incident ────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function normaliseIncident(data: any): Incident {
-  return {
+  const raw: Incident = {
     id:               data.id,
     citizenName:      data.citizen_name,
     citizenPhone:     data.citizen_phone ?? undefined,
@@ -99,6 +140,8 @@ function normaliseIncident(data: any): Incident {
     updatedAt:        data.updated_at,
     resolvedAt:       data.resolved_at ?? undefined,
   }
+  // Merge locally-stored extras (severity, address, etc.) that backend may not persist
+  return mergeExtras(raw)
 }
 
 // ─── Mock helpers ─────────────────────────────────────────────────────────────
@@ -268,7 +311,16 @@ export const incidentService = {
       }),
     })
     if (!res.ok) throw new Error(await extractApiError(res, 'Failed to create incident'))
-    return normaliseIncident(await res.json())
+    const created = normaliseIncident(await res.json())
+    // Store fields the backend may not persist so they survive re-fetches
+    storeExtras(created.id, {
+      severity:    payload.severity,
+      address:     payload.location.address,
+      region:      payload.location.region,
+      citizenPhone: payload.citizenPhone,
+      notes:       payload.notes,
+    })
+    return mergeExtras(created)
   },
 
   // PUT /incidents/:id/status
