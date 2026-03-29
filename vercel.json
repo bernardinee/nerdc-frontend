@@ -15,6 +15,10 @@
     {
       "source": "/api/analytics/:path*",
       "destination": "https://analytics-service-production-7584.up.railway.app/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
