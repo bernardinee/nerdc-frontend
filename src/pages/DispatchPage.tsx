@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import {
   AlertTriangle, CheckCircle2, Radio, Truck, Clock,
-  RefreshCw, ChevronDown, Zap, X, Plus, MapPin,
+  RefreshCw, ChevronDown, Zap, X, Plus, MapPin, Globe,
 } from 'lucide-react'
 import { StatCard } from '@/components/ui/StatCard'
 import { GlassCard } from '@/components/ui/GlassCard'
@@ -51,6 +51,7 @@ export default function DispatchPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [recallingId, setRecallingId] = useState<string | null>(null)
   const [filterStatus, setFilterStatus] = useState<IncidentStatus | 'all'>('all')
+  const [filterRegion, setFilterRegion] = useState<string>('all')
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false)
@@ -129,7 +130,16 @@ export default function DispatchPage() {
     }
   }
 
-  const filtered = filterStatus === 'all' ? incidents : incidents.filter((i) => i.status === filterStatus)
+  // Derive unique regions from incidents (uses location.region populated via localStorage extras)
+  const regions = ['all', ...Array.from(new Set(
+    incidents.map((i) => i.location.region).filter(Boolean)
+  )).sort()]
+
+  const filtered = incidents.filter((i) => {
+    if (filterStatus !== 'all' && i.status !== filterStatus) return false
+    if (filterRegion !== 'all' && i.location.region !== filterRegion) return false
+    return true
+  })
   const statuses: Array<IncidentStatus | 'all'> = ['all', 'created', 'pending', 'dispatched', 'in_progress', 'resolved']
   const availableCount = vehicles.filter((v) => v.status === 'available').length
 
@@ -172,6 +182,30 @@ export default function DispatchPage() {
                 {s === 'all' ? 'All' : s.replace('_', ' ')}
               </button>
             ))}
+
+            {/* Region filter */}
+            <div className="relative flex items-center">
+              <Globe className="absolute left-2 w-3 h-3 text-slate-500 pointer-events-none" />
+              <select
+                value={filterRegion}
+                onChange={(e) => setFilterRegion(e.target.value)}
+                className={cn(
+                  'pl-6 pr-6 py-1 rounded-lg text-xs font-medium border appearance-none transition-all cursor-pointer',
+                  filterRegion !== 'all'
+                    ? 'bg-cyan-500/15 border-cyan-500/30 text-cyan-300'
+                    : 'bg-white/3 border-white/8 text-slate-400 hover:bg-white/6 hover:text-slate-200'
+                )}
+                style={{ background: 'transparent' }}
+              >
+                {regions.map((r) => (
+                  <option key={r} value={r} className="bg-[#1c2128] text-slate-200">
+                    {r === 'all' ? 'All Regions' : r}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown className="absolute right-1.5 w-3 h-3 text-slate-500 pointer-events-none" />
+            </div>
+
             <button onClick={load} className="p-1.5 rounded-lg bg-white/5 border border-white/8 text-slate-400 hover:text-white transition-colors">
               <RefreshCw className="w-3.5 h-3.5" />
             </button>

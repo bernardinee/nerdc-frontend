@@ -123,6 +123,36 @@ function simulateMovement(vehicle: Vehicle, incidents: Incident[]): Vehicle {
 
 const frontendDispatchMap = new Map<string, string>() // vehicleId → incidentId
 
+// ─── Client-side dispatch tracking ───────────────────────────────────────────
+// The analytics backend only counts resolved incidents, so it's always zero
+// during a live session. We track every dispatch in localStorage so the
+// Analytics page can show real utilization data immediately.
+
+const DISPATCH_TRACK_KEY = 'nerdc_vehicle_dispatches'
+
+interface DispatchRecord {
+  callSign: string
+  vehicleType: string
+  stationId: string
+  count: number
+  lastDispatch: string
+}
+
+function recordDispatch(vehicleId: string, callSign: string, vehicleType: string, stationId: string) {
+  try {
+    const all: Record<string, DispatchRecord> = JSON.parse(localStorage.getItem(DISPATCH_TRACK_KEY) ?? '{}')
+    const prev = all[vehicleId]
+    all[vehicleId] = {
+      callSign,
+      vehicleType,
+      stationId,
+      count: (prev?.count ?? 0) + 1,
+      lastDispatch: new Date().toISOString(),
+    }
+    localStorage.setItem(DISPATCH_TRACK_KEY, JSON.stringify(all))
+  } catch { /* storage quota or parse error — ignore */ }
+}
+
 // ─── Public service ───────────────────────────────────────────────────────────
 
 export const vehicleService = {
@@ -212,6 +242,9 @@ export const vehicleService = {
     })
     if (!res.ok) throw new Error(await extractApiError(res, 'Failed to add unit to incident'))
     frontendDispatchMap.set(vehicleId, incidentId)
+    // Track dispatch for analytics
+    const veh = await this.getVehicleById(vehicleId)
+    if (veh) recordDispatch(vehicleId, veh.callSign, veh.type, veh.stationId)
   },
 
   /**
@@ -267,6 +300,9 @@ export const vehicleService = {
 
     // Register in frontend map immediately so animation starts without waiting for backend echo
     frontendDispatchMap.set(vehicleId, incidentId)
+    // Track dispatch for analytics
+    const veh = await this.getVehicleById(vehicleId)
+    if (veh) recordDispatch(vehicleId, veh.callSign, veh.type, veh.stationId)
 
     // Assign vehicle to incident (best-effort — incident service may auto-assign)
     if (INCIDENT_BASE) {

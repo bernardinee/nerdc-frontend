@@ -58,6 +58,20 @@ function loadExtrasRegion(): Record<string, string> {
   } catch { return {} }
 }
 
+// ─── Client-side vehicle dispatch tracking ────────────────────────────────────
+
+interface DispatchRecord {
+  callSign: string
+  vehicleType: string
+  stationId: string
+  count: number
+  lastDispatch: string
+}
+
+function loadVehicleDispatches(): Record<string, DispatchRecord> {
+  try { return JSON.parse(localStorage.getItem('nerdc_vehicle_dispatches') ?? '{}') } catch { return {} }
+}
+
 // ─── Public service ───────────────────────────────────────────────────────────
 
 export const analyticsService = {
@@ -197,10 +211,29 @@ export const analyticsService = {
       .map(([region, count]) => ({ region, count }))
       .sort((a, b) => b.count - a.count)
 
-    // Resource utilization — analytics endpoint is empty while backend has no resolved data;
-    // fall back to the live vehicle list so the table is always populated
-    const vehicleUtilization = utilData.length > 0
-      ? utilData.map((u) => ({
+    // Resource utilization — built from client-side dispatch tracking (localStorage).
+    // Only vehicles that have actually been dispatched appear here.
+    // Falls back to analytics backend data if it ever starts returning results.
+    const dispatchTracking = loadVehicleDispatches()
+    const trackedIds = Object.keys(dispatchTracking)
+
+    const vehicleUtilization = trackedIds.length > 0
+      ? trackedIds.map((id) => {
+          const d = dispatchTracking[id]
+          // Try to enrich with live vehicle data (call sign, station)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const live: any = vehicleList.find((v: any) => v.id === id)
+          return {
+            vehicleId:        id,
+            callSign:         live?.registration_number ?? d.callSign,
+            stationId:        live?.station_id ?? d.stationId,
+            type:             (VTYPE_FROM_BACKEND[live?.vehicle_type ?? ''] ?? d.vehicleType ?? 'ambulance') as VehicleType,
+            hoursActive:      Math.round(d.count * 1.5),
+            incidentsHandled: d.count,
+            utilizationPct:   Math.min(100, d.count * 20),
+          }
+        }).sort((a, b) => b.incidentsHandled - a.incidentsHandled)
+      : utilData.map((u) => ({
           vehicleId:        u.unit_id,
           callSign:         `${u.unit_type}-${u.unit_id.slice(-4).toUpperCase()}`,
           stationId:        '',
@@ -208,15 +241,6 @@ export const analyticsService = {
           hoursActive:      Math.round(u.total_dispatches * 1.5),
           incidentsHandled: u.total_dispatches,
           utilizationPct:   Math.min(100, Math.round(u.total_dispatches * 10)),
-        }))
-      : vehicleList.map((v) => ({
-          vehicleId:        v.id,
-          callSign:         v.registration_number ?? v.id,
-          stationId:        v.station_id ?? '',
-          type:             (VTYPE_FROM_BACKEND[v.vehicle_type] ?? 'ambulance') as VehicleType,
-          hoursActive:      0,
-          incidentsHandled: 0,
-          utilizationPct:   v.status === 'ON_DUTY' ? 75 : 0,
         }))
 
     // Response time trend across 7 days
