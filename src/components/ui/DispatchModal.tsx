@@ -142,8 +142,8 @@ export function DispatchModal({
       const names = selectedVehicles.slice(0, successCount).map((v) => v.callSign).join(', ')
       toast.success(
         successCount === 1
-          ? `${names} dispatched to ${selectedIncident.id}`
-          : `${successCount} units dispatched to ${selectedIncident.id}: ${names}`,
+          ? `${names} dispatched to ${selectedIncident.location.address}`
+          : `${successCount} units dispatched to ${selectedIncident.location.address}: ${names}`,
         { icon: '🚨', duration: 4000 }
       )
     }
@@ -250,7 +250,6 @@ export function DispatchModal({
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-mono text-[11px] text-slate-500">{inc.id}</span>
                         {inc.severity && <StatusBadge type="severity" value={inc.severity} />}
                         <StatusBadge type="incident-status" value={inc.status} />
                       </div>
@@ -285,7 +284,6 @@ export function DispatchModal({
                   <span className="text-xl">{TYPE_ICONS[selectedIncident.type]}</span>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] text-slate-500">{selectedIncident.id}</span>
                       {selectedIncident.severity && (
                         <span className={cn('text-xs font-bold', SEVERITY_COLOR[selectedIncident.severity])}>
                           {selectedIncident.severity.toUpperCase()}
@@ -455,7 +453,7 @@ export function DispatchModal({
             {selectedIncident ? (
               <span className="flex items-center gap-1.5">
                 <span className="text-base">{TYPE_ICONS[selectedIncident.type]}</span>
-                <span className="text-white font-semibold">{selectedIncident.id}</span>
+                <span className="text-white font-semibold">{selectedIncident.citizenName}</span>
               </span>
             ) : (
               <span className="text-slate-600">No incident selected</span>

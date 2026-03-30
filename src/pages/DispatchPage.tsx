@@ -285,7 +285,6 @@ export default function DispatchPage() {
                     <div className="min-w-0 flex-1">
                       {/* Row 1: ID + badges */}
                       <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="font-mono text-[11px] text-slate-500">{inc.id}</span>
                         <StatusBadge type="incident-status" value={inc.status} />
                         {inc.severity
                           ? <StatusBadge type="severity" value={inc.severity} />

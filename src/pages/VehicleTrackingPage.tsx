@@ -434,7 +434,7 @@ function VehicleDetailPanel({
           </div>
           <div>
             <p className="text-sm font-semibold text-white">{vehicle.driverName}</p>
-            <p className="text-[11px] text-slate-500">{vehicle.id} · {vehicle.type.replace('_', ' ')}</p>
+            <p className="text-[11px] text-slate-500">{vehicle.callSign} · {vehicle.type.replace('_', ' ')}</p>
           </div>
         </div>
       </GlassCard>
@@ -467,7 +467,6 @@ function VehicleDetailPanel({
         <GlassCard className="p-4 flex-shrink-0 border border-cyan-500/15">
           <SectionHeader title="Active Assignment" className="mb-3" />
           <div className="space-y-1.5">
-            <p className="font-mono text-[11px] text-slate-500">{incident.id}</p>
             <p className="text-sm font-semibold text-white">{incident.citizenName}</p>
             <p className="text-xs text-slate-400 truncate">{incident.location.address}</p>
             <div className="flex items-center gap-2 mt-2">

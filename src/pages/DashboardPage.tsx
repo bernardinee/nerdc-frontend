@@ -158,7 +158,7 @@ export default function DashboardPage() {
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-white/6">
-                    {['ID', 'Citizen', 'Type', 'Severity', 'Status', 'Time'].map((h) => (
+                    {['#', 'Citizen', 'Type', 'Severity', 'Status', 'Time'].map((h) => (
                       <th key={h} className="px-3 py-2.5 text-left text-[11px] font-semibold text-slate-500 uppercase tracking-wider">{h}</th>
                     ))}
                   </tr>
@@ -170,7 +170,7 @@ export default function DashboardPage() {
                       className="hover:bg-white/[0.02] transition-colors cursor-pointer"
                       onClick={() => navigate('/dispatch')}
                     >
-                      <td className="px-3 py-3 font-mono text-xs text-slate-400">{inc.id}</td>
+                      <td className="px-3 py-3 font-mono text-xs text-slate-400">{recent.indexOf(inc) + 1}</td>
                       <td className="px-3 py-3 text-white text-xs font-medium max-w-[120px] truncate">{inc.citizenName}</td>
                       <td className="px-3 py-3 text-xs text-slate-300">
                         <span>{TYPE_ICONS[inc.type]} </span>
