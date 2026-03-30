@@ -123,6 +123,19 @@ function simulateMovement(vehicle: Vehicle, incidents: Incident[]): Vehicle {
 
 const frontendDispatchMap = new Map<string, string>() // vehicleId → incidentId
 
+// ─── Persistent animation state ───────────────────────────────────────────────
+// These live at module level so vehicle positions and arrival status survive
+// page navigation. Without this, every visit to VehicleTrackingPage resets
+// the animation and vehicles cycle back to en_route from the beginning.
+
+interface LiveLocalState {
+  lat: number; lng: number
+  speed: number; heading: number
+  status: Vehicle['status']
+}
+const liveLocalState = new Map<string, LiveLocalState>()
+const liveIncidentDestinations = new Map<string, { lat: number; lng: number }>()
+
 // ─── Client-side dispatch tracking ───────────────────────────────────────────
 // The analytics backend only counts resolved incidents, so it's always zero
 // during a live session. We track every dispatch in localStorage so the
@@ -391,16 +404,10 @@ export const vehicleService = {
     // If a real GPS push ever arrives via WebSocket, we snap the local position
     // to the actual coordinates so the two stay in sync.
 
-    interface LocalState {
-      lat: number; lng: number
-      speed: number; heading: number
-      status: Vehicle['status']
-    }
-
-    const localState = new Map<string, LocalState>()
+    // Use module-level maps so animation state persists across page navigation
+    const localState = liveLocalState
+    const incidentDestinations = liveIncidentDestinations
     let lastBackendVehicles: Vehicle[] = []
-    // Quick incident destination store (id → lat/lng)
-    const incidentDestinations = new Map<string, { lat: number; lng: number }>()
 
     let stopped = false
     const wsConnections = new Map<string, WebSocket>()
