@@ -17,6 +17,7 @@ import type { CreateIncidentPayload, Incident, IncidentSeverity, IncidentStatus,
 import { incidentStore, vehicleStore, messageStore } from '../mocks/mockStore'
 import { sleep, generateId } from '@/lib/utils'
 import { apiFetch, extractApiError } from '../apiClient'
+import { reverseGeocode } from './geocodingService'
 
 // ─── Config ───────────────────────────────────────────────────────────────────
 
@@ -116,6 +117,34 @@ function mergeExtras(incident: Incident): Incident {
   }
 }
 
+// ─── Background location backfill ─────────────────────────────────────────────
+// When the backend omits address/region (it doesn't persist them), reverse-geocode
+// from the lat/lng it does return, cache in localStorage, and apply on next refresh.
+// Fire-and-forget — never blocks the initial load.
+
+const _geocodingInFlight = new Set<string>()
+
+function backfillMissingLocations(incidents: Incident[]): void {
+  const missing = incidents.filter(
+    (inc) => (!inc.location.address || !inc.location.region) && !_geocodingInFlight.has(inc.id)
+  )
+  if (missing.length === 0) return
+
+  ;(async () => {
+    for (const inc of missing) {
+      _geocodingInFlight.add(inc.id)
+      try {
+        const geo = await reverseGeocode(inc.location.lat, inc.location.lng)
+        storeExtras(inc.id, { address: geo.address, region: geo.region })
+      } catch { /* ignore network/rate-limit errors */ } finally {
+        _geocodingInFlight.delete(inc.id)
+      }
+      // Nominatim rate limit: 1 req/s
+      await new Promise<void>((r) => setTimeout(r, 1100))
+    }
+  })()
+}
+
 // ─── Normalise backend response → Incident ────────────────────────────────────
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -206,7 +235,9 @@ export const incidentService = {
     const res = await authFetch('/incidents/open')
     if (!res.ok) throw new Error(`Failed to fetch incidents (HTTP ${res.status})`)
     const data = await res.json()
-    return data.map(normaliseIncident)
+    const incidents = data.map(normaliseIncident)
+    backfillMissingLocations(incidents)
+    return incidents
   },
 
   // GET /incidents/open
@@ -218,7 +249,9 @@ export const incidentService = {
     const res = await authFetch('/incidents/open')
     if (!res.ok) throw new Error(`Failed to fetch open incidents (HTTP ${res.status})`)
     const data = await res.json()
-    return data.map(normaliseIncident)
+    const incidents = data.map(normaliseIncident)
+    backfillMissingLocations(incidents)
+    return incidents
   },
 
   // GET /incidents/:id
