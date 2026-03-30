@@ -62,28 +62,24 @@ export const dispatchService = {
       return { openIncidents: open, dispatchedIncidents: dispatched, activeVehicles, resolvedIncidents: resolved, avgResponseTimeMinutes: avgResponseTime }
     }
 
-    // Live: combine open incidents + vehicles + analytics response-times + resolved incidents
-    const [incidentRes, vehicleRes, rtRes, resolvedRes] = await Promise.all([
+    // Live: combine open incidents + vehicles + analytics response-times
+    const [incidentRes, vehicleRes, rtRes] = await Promise.all([
       INCIDENT_BASE  ? apiFetch(INCIDENT_BASE,  '/incidents/open')            : Promise.resolve(null),
       DISPATCH_BASE  ? apiFetch(DISPATCH_BASE,  '/vehicles')                  : Promise.resolve(null),
       ANALYTICS_BASE ? apiFetch(ANALYTICS_BASE, '/analytics/response-times') : Promise.resolve(null),
-      // Try to get resolved incidents directly — endpoint may vary by backend
-      INCIDENT_BASE  ? apiFetch(INCIDENT_BASE,  '/incidents/resolved').catch(() => null) : Promise.resolve(null),
     ])
 
     const incidents: { status: string }[] = incidentRes?.ok ? await incidentRes.json() : []
     const vehicles:  { status: string }[] = vehicleRes?.ok  ? await vehicleRes.json()  : []
     const rt = rtRes?.ok ? await rtRes.json() : {}
-    const resolvedList: unknown[] = resolvedRes?.ok ? await resolvedRes.json() : []
 
     const openIncidents       = incidents.length
     const dispatchedIncidents = incidents.filter((i) => ['DISPATCHED', 'IN_PROGRESS'].includes(i.status)).length
     const activeVehicles      = vehicles.filter((v) => v.status === 'ON_DUTY').length
 
-    // Resolved count: prefer backend resolved endpoint → analytics total_resolved → session count
-    const backendResolved  = Array.isArray(resolvedList) && resolvedList.length > 0 ? resolvedList.length : 0
+    // Resolved count: analytics total_resolved → session count
     const analyticsResolved = rt.total_resolved ?? 0
-    const resolvedIncidents = Math.max(backendResolved, analyticsResolved, sessionResolvedCount)
+    const resolvedIncidents = Math.max(analyticsResolved, sessionResolvedCount)
 
     const analyticsAvg = Math.round((rt.average_seconds ?? 0) / 60)
     const avgResponseTimeMinutes = analyticsAvg || sessionAvgResponseTime()
