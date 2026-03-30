@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   AlertTriangle, CheckCircle2, Radio, Truck, Clock,
   RefreshCw, ChevronDown, Zap, X, Plus, MapPin, Globe,
@@ -69,14 +69,36 @@ export default function DispatchPage() {
     setLoading(false)
   }
 
+  // Track vehicles already processed for on_scene so we only fire once per arrival
+  const arrivedVehicles = useRef(new Set<string>())
+
   useEffect(() => {
     load()
+
     const unsubI = incidentService.subscribeToIncidents(async (updated) => {
       setIncidents(updated)
       const s = await dispatchService.getDispatchSummary()
       setSummary(s)
     })
-    return unsubI
+
+    const unsubV = vehicleService.subscribeToVehicleUpdates((updatedVehicles) => {
+      setVehicles(updatedVehicles)
+
+      for (const v of updatedVehicles) {
+        if (v.status === 'on_scene' && v.assignedIncidentId && !arrivedVehicles.current.has(v.id)) {
+          // Vehicle just arrived — transition incident to in_progress
+          arrivedVehicles.current.add(v.id)
+          incidentService.updateIncidentStatus(v.assignedIncidentId, 'in_progress')
+            .then(() => load())
+            .catch(() => { /* ignore if already in_progress or resolved */ })
+        } else if (v.status !== 'on_scene') {
+          // Vehicle left the scene — clear so it can trigger again if re-dispatched
+          arrivedVehicles.current.delete(v.id)
+        }
+      }
+    })
+
+    return () => { unsubI(); unsubV() }
   }, [])
 
   function openDispatchModal(incident?: Incident) {
