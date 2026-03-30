@@ -229,7 +229,7 @@ export default function AnalyticsPage() {
                   {data.vehicleUtilization.map((v) => (
                     <tr key={v.vehicleId} className="hover:bg-white/[0.02] transition-colors">
                       <td className="px-3 py-3 font-semibold text-white">{v.callSign}</td>
-                      <td className="px-3 py-3 text-slate-300">{v.hoursActive}h</td>
+                      <td className="px-3 py-3 text-slate-300">{typeof v.hoursActive === 'number' ? v.hoursActive.toFixed(1) : v.hoursActive}h</td>
                       <td className="px-3 py-3 text-slate-300">{v.incidentsHandled}</td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-2.5">

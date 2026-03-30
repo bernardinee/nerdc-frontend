@@ -217,11 +217,18 @@ export const analyticsService = {
     //   2. localStorage tracking: manual dispatches made through the frontend modal.
     const dispatchTracking = loadVehicleDispatches()
 
-    // Count assignments from open incidents (backend auto-dispatch source)
+    // Count assignments from open incidents (backend auto-dispatch source).
+    // Also track the earliest dispatch time per vehicle so hoursActive is real.
     const incidentAssignments: Record<string, number> = {}
+    const vehicleDispatchTimes: Record<string, Date> = {}
     for (const inc of openList) {
       const unitId = inc.assigned_unit_id
-      if (unitId) incidentAssignments[unitId] = (incidentAssignments[unitId] ?? 0) + 1
+      if (!unitId) continue
+      incidentAssignments[unitId] = (incidentAssignments[unitId] ?? 0) + 1
+      const t = inc.created_at ? new Date(inc.created_at) : null
+      if (t && (!vehicleDispatchTimes[unitId] || t < vehicleDispatchTimes[unitId])) {
+        vehicleDispatchTimes[unitId] = t
+      }
     }
 
     // Union of both sources
@@ -237,12 +244,18 @@ export const analyticsService = {
           const live: any = vehicleList.find((v: any) => v.id === id)
           // Use whichever source has a higher count (localStorage persists resolved ones)
           const count = Math.max(d?.count ?? 0, incidentAssignments[id] ?? 0)
+          // Actual elapsed time: prefer incident created_at, fall back to localStorage lastDispatch
+          const dispatchedAt = vehicleDispatchTimes[id]
+            ?? (d?.lastDispatch ? new Date(d.lastDispatch) : null)
+          const hoursActive = dispatchedAt
+            ? Math.round((Date.now() - dispatchedAt.getTime()) / 3_600_000 * 10) / 10
+            : count
           return {
             vehicleId:        id,
             callSign:         live?.registration_number ?? d?.callSign ?? id,
             stationId:        live?.station_id ?? d?.stationId ?? '',
             type:             (VTYPE_FROM_BACKEND[live?.vehicle_type ?? ''] ?? d?.vehicleType ?? 'ambulance') as VehicleType,
-            hoursActive:      Math.round(count * 1.5),
+            hoursActive,
             incidentsHandled: count,
             utilizationPct:   Math.min(100, count * 20),
           }
