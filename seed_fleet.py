@@ -54,7 +54,7 @@ ADMIN_PASSWORD = "Admin@1234"
 
 FLEET = [
     # -------------------------------------------------------------------------
-    # POLICE CARS (16)
+    # POLICE CARS (16 regional + 10 extra Accra = 26)
     # -------------------------------------------------------------------------
     ("GPS-POL-001", "POLICE", "Accra Central Police Station",        "Sgt. Kwame Asante",      5.5502, -0.2174),
     ("GPS-POL-002", "POLICE", "Kumasi Central Police Station",       "Sgt. Ama Owusu",         6.6930, -1.6200),
@@ -73,8 +73,20 @@ FLEET = [
     ("GPS-POL-015", "POLICE", "Goaso Police Station",                "Sgt. Yaw Antwi",         6.8070, -2.5180),
     ("GPS-POL-016", "POLICE", "Sefwi Wiawso Police Station",         "Sgt. Akua Danso",        6.2140, -2.4820),
 
+    # Extra Accra police (10)
+    ("GPS-POL-017", "POLICE", "Cantonments Police Station",          "Sgt. Nii Armah Tetteh",  5.5710, -0.1900),
+    ("GPS-POL-018", "POLICE", "Labadi Police Station",               "Sgt. Abena Ocran",       5.5600, -0.1350),
+    ("GPS-POL-019", "POLICE", "Nungua Police Station",               "Sgt. Kofi Klu",          5.5900, -0.0720),
+    ("GPS-POL-020", "POLICE", "Tema Police Station",                 "Sgt. Ama Hagan",         5.6700, -0.0050),
+    ("GPS-POL-021", "POLICE", "Madina Police Station",               "Sgt. Kojo Acheampong",   5.6800, -0.1700),
+    ("GPS-POL-022", "POLICE", "East Legon Police Station",           "Sgt. Efua Asante",       5.6300, -0.1490),
+    ("GPS-POL-023", "POLICE", "Dansoman Police Station",             "Sgt. Kweku Laryea",      5.5390, -0.2620),
+    ("GPS-POL-024", "POLICE", "Kasoa Police Station",                "Sgt. Adwoa Quaye",       5.5300, -0.4280),
+    ("GPS-POL-025", "POLICE", "Achimota Police Station",             "Sgt. Nana Boateng",      5.6100, -0.2400),
+    ("GPS-POL-026", "POLICE", "Spintex Police Station",              "Sgt. Akosua Mensah",     5.6490, -0.1200),
+
     # -------------------------------------------------------------------------
-    # AMBULANCES (16)
+    # AMBULANCES (16 regional + 10 extra Accra = 26)
     # -------------------------------------------------------------------------
     ("GAS-AMB-001", "AMBULANCE", "Korle Bu Teaching Hospital",           "Paramedic John Aidoo",      5.5364, -0.2286),
     ("GAS-AMB-002", "AMBULANCE", "Komfo Anokye Teaching Hospital",       "Paramedic Grace Nkrumah",   6.6840, -1.6290),
@@ -93,8 +105,20 @@ FLEET = [
     ("GAS-AMB-015", "AMBULANCE", "Goaso Government Hospital",            "Paramedic Kofi Owusu",      6.7990, -2.5260),
     ("GAS-AMB-016", "AMBULANCE", "Sefwi Wiawso Government Hospital",     "Paramedic Ama Larbi",       6.2050, -2.4910),
 
+    # Extra Accra ambulances (10)
+    ("GAS-AMB-017", "AMBULANCE", "37 Military Hospital",                 "Paramedic Nii Okai",        5.5970, -0.1870),
+    ("GAS-AMB-018", "AMBULANCE", "Ridge Hospital",                       "Paramedic Abena Bonsu",     5.5730, -0.1980),
+    ("GAS-AMB-019", "AMBULANCE", "La General Hospital",                  "Paramedic Kofi Nortey",     5.5680, -0.1480),
+    ("GAS-AMB-020", "AMBULANCE", "Tema General Hospital",                "Paramedic Ama Teye",        5.6680, -0.0030),
+    ("GAS-AMB-021", "AMBULANCE", "Police Hospital Accra",                "Paramedic Yaw Darko",       5.5750, -0.2050),
+    ("GAS-AMB-022", "AMBULANCE", "Maamobi General Hospital",             "Paramedic Akua Tawiah",     5.5890, -0.2180),
+    ("GAS-AMB-023", "AMBULANCE", "Mamprobi Polyclinic",                  "Paramedic Kwesi Fynn",      5.5410, -0.2290),
+    ("GAS-AMB-024", "AMBULANCE", "Achimota Hospital",                    "Paramedic Adwoa Osei",      5.6130, -0.2350),
+    ("GAS-AMB-025", "AMBULANCE", "University of Ghana Hospital",         "Paramedic Fiifi Aidoo",     5.6490, -0.1870),
+    ("GAS-AMB-026", "AMBULANCE", "Tema Polyclinic",                      "Paramedic Abena Sackey",    5.6750, -0.0120),
+
     # -------------------------------------------------------------------------
-    # FIRE TRUCKS (16)
+    # FIRE TRUCKS (16 regional + 10 extra Accra = 26)
     # -------------------------------------------------------------------------
     ("GFS-FIRE-001", "FIRE_TRUCK", "Accra Central Fire Station",          "Chief Kwame Osei",       5.5450, -0.2050),
     ("GFS-FIRE-002", "FIRE_TRUCK", "Kumasi Fire Station",                 "Chief Abena Gyasi",      6.6960, -1.6170),
@@ -112,6 +136,18 @@ FLEET = [
     ("GFS-FIRE-014", "FIRE_TRUCK", "Nalerigu Fire Station",               "Chief Ama Frimpong",    10.5280, -0.3520),
     ("GFS-FIRE-015", "FIRE_TRUCK", "Goaso Fire Station",                  "Chief Kofi Darko",       6.8110, -2.5140),
     ("GFS-FIRE-016", "FIRE_TRUCK", "Sefwi Wiawso Fire Station",           "Chief Abena Kumi",       6.2180, -2.4790),
+
+    # Extra Accra fire trucks (10)
+    ("GFS-FIRE-017", "FIRE_TRUCK", "Tema Fire Station",                  "Chief Nii Lante Quaye",  5.6710,  0.0020),
+    ("GFS-FIRE-018", "FIRE_TRUCK", "Nungua Fire Station",                "Chief Ama Akufo",        5.5920, -0.0700),
+    ("GFS-FIRE-019", "FIRE_TRUCK", "Airport Fire Station",               "Chief Kojo Darko",       5.6050, -0.1680),
+    ("GFS-FIRE-020", "FIRE_TRUCK", "Labadi Fire Station",                "Chief Efua Ankrah",      5.5580, -0.1320),
+    ("GFS-FIRE-021", "FIRE_TRUCK", "Adabraka Fire Station",              "Chief Kwame Nkrumah",    5.5530, -0.2130),
+    ("GFS-FIRE-022", "FIRE_TRUCK", "Asylum Down Fire Station",           "Chief Akosua Laryea",    5.5660, -0.2230),
+    ("GFS-FIRE-023", "FIRE_TRUCK", "Kaneshie Fire Station",              "Chief Yaw Mensah",       5.5590, -0.2540),
+    ("GFS-FIRE-024", "FIRE_TRUCK", "Tesano Fire Station",                "Chief Adwoa Gyimah",     5.5940, -0.2390),
+    ("GFS-FIRE-025", "FIRE_TRUCK", "Dansoman Fire Station",              "Chief Kofi Amponsah",    5.5370, -0.2650),
+    ("GFS-FIRE-026", "FIRE_TRUCK", "East Legon Fire Station",            "Chief Nana Asante",      5.6320, -0.1510),
 ]
 
 # -----------------------------------------------------------------------------
@@ -167,7 +203,7 @@ def register_vehicle(token, reg, vtype, station, driver, lat, lng):
     if res.status_code in (200, 201):
         print(f"  [OK]   {reg:22s}  {vtype:10s}  {station}")
         return True
-    elif res.status_code == 409:
+    elif res.status_code in (400, 409) and "already" in res.text.lower():
         print(f"  [SKIP] {reg:22s}  already exists")
         return True
     else:
@@ -195,15 +231,15 @@ def main():
 
     total = sum(counts.values())
     print("-- Summary --------------------------------------------------")
-    print(f"  Police Cars : {counts['POLICE']}/16")
-    print(f"  Ambulances  : {counts['AMBULANCE']}/16")
-    print(f"  Fire Trucks : {counts['FIRE_TRUCK']}/16")
-    print(f"  Total       : {total}/48")
+    print(f"  Police Cars : {counts['POLICE']}/26")
+    print(f"  Ambulances  : {counts['AMBULANCE']}/26")
+    print(f"  Fire Trucks : {counts['FIRE_TRUCK']}/26")
+    print(f"  Total       : {total}/78")
     print(f"  Failures    : {failures}")
     print()
 
     if failures == 0:
-        print("All 48 vehicles registered across Ghana's 16 regions. Refresh your app.")
+        print("All 78 vehicles registered (33 in Greater Accra, 3 per remaining 15 regions). Refresh your app.")
     else:
         print(f"{failures} vehicle(s) failed. Re-run to retry -- skips already-registered vehicles.")
 
