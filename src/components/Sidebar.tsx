@@ -1,12 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, FilePlus, Radio, MapPin, BarChart3,
-  UserCircle, LogOut, Shield, ChevronLeft, ChevronRight,
-  Zap,
+  UserCircle, LogOut, Shield, Zap,
 } from 'lucide-react'
 import { useAuthStore } from '@/store/useAuthStore'
 import { cn } from '@/lib/utils'
-import { useState } from 'react'
 import toast from 'react-hot-toast'
 import { GhanaFlag } from '@/components/ui/GhanaFlag'
 
@@ -18,12 +16,13 @@ const navItems = [
   { to: '/analytics',    icon: BarChart3,        label: 'Analytics',       page: 'analytics'  },
 ]
 
-export function Sidebar() {
+interface SidebarProps { collapsed: boolean }
+
+export function Sidebar({ collapsed }: SidebarProps) {
   const admin     = useAuthStore((s) => s.admin)
   const logout    = useAuthStore((s) => s.logout)
   const canAccess = useAuthStore((s) => s.canAccess)
-  const navigate = useNavigate()
-  const [collapsed, setCollapsed] = useState(false)
+  const navigate  = useNavigate()
 
   async function handleLogout() {
     await logout()
@@ -38,15 +37,6 @@ export function Sidebar() {
         collapsed ? 'w-16' : 'w-60'
       )}
     >
-      {/* Toggle */}
-      <button
-        onClick={() => setCollapsed((c) => !c)}
-        className="absolute -right-3.5 top-8 z-10 w-7 h-7 rounded-full bg-cyan-500 hover:bg-cyan-400 border-2 border-[#0d1117] flex items-center justify-center text-white transition-all shadow-lg hover:scale-110"
-        title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-      >
-        {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronLeft className="w-3.5 h-3.5" />}
-      </button>
-
       {/* Logo */}
       <div className={cn('flex items-center gap-3 px-4 py-5 border-b border-white/[0.06]', collapsed && 'px-3 justify-center')}>
         <div className="w-8 h-8 rounded-xl bg-cyan-500/20 border border-cyan-500/30 flex items-center justify-center flex-shrink-0">

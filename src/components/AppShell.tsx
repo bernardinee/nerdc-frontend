@@ -2,10 +2,12 @@ import { Outlet } from 'react-router-dom'
 import { Sidebar } from './Sidebar'
 import { Topbar } from './Topbar'
 import { useThemeStore } from '@/store/useThemeStore'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 export function AppShell() {
   const theme = useThemeStore((s) => s.theme)
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+
   useEffect(() => {
     const root = document.documentElement
     root.classList.toggle('light', theme === 'light')
@@ -21,10 +23,10 @@ export function AppShell() {
         <div className="absolute -bottom-32 left-1/3 w-72 h-72 bg-purple-600/[0.03] rounded-full blur-3xl" />
       </div>
 
-      <Sidebar />
+      <Sidebar collapsed={sidebarCollapsed} />
 
       <div className="flex-1 flex flex-col overflow-hidden">
-        <Topbar />
+        <Topbar collapsed={sidebarCollapsed} onToggleSidebar={() => setSidebarCollapsed((c) => !c)} />
         <main className="flex-1 overflow-y-auto p-6 animate-fade-in">
           <Outlet />
         </main>

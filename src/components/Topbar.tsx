@@ -1,5 +1,5 @@
 import { useLocation } from 'react-router-dom'
-import { Shield, ChevronDown, Sun, Moon } from 'lucide-react'
+import { Shield, ChevronDown, Sun, Moon, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { useAuthStore } from '@/store/useAuthStore'
 import { useThemeStore } from '@/store/useThemeStore'
 import { useState } from 'react'
@@ -15,7 +15,12 @@ const pageLabels: Record<string, string> = {
   '/profile': 'Profile',
 }
 
-export function Topbar() {
+interface TopbarProps {
+  collapsed: boolean
+  onToggleSidebar: () => void
+}
+
+export function Topbar({ collapsed, onToggleSidebar }: TopbarProps) {
   const { pathname } = useLocation()
   const admin = useAuthStore((s) => s.admin)
   const [showMenu, setShowMenu] = useState(false)
@@ -24,12 +29,23 @@ export function Topbar() {
   const label = pageLabels[pathname] ?? 'NERDC'
 
   return (
-    <header className="h-14 flex items-center justify-between px-6 glass border-b border-white/[0.06] flex-shrink-0 relative z-10">
-      <div>
-        <h1 className="text-base font-bold text-white tracking-tight">{label}</h1>
-        <p className="text-[10px] text-slate-500 leading-none mt-0.5">
-          National Emergency Response &amp; Dispatch Centre
-        </p>
+    <header className="h-14 flex items-center justify-between px-4 glass border-b border-white/[0.06] flex-shrink-0 relative z-10">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={onToggleSidebar}
+          className="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/8 transition-all border border-transparent hover:border-white/10"
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed
+            ? <PanelLeftOpen className="w-4 h-4" />
+            : <PanelLeftClose className="w-4 h-4" />}
+        </button>
+        <div>
+          <h1 className="text-base font-bold text-white tracking-tight">{label}</h1>
+          <p className="text-[10px] text-slate-500 leading-none mt-0.5">
+            National Emergency Response &amp; Dispatch Centre
+          </p>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
