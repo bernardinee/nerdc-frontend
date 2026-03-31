@@ -119,48 +119,50 @@ function mergeExtras(incident: Incident): Incident {
 
 // ─── Location backfill ────────────────────────────────────────────────────────
 // The backend omits address/region, so we reverse-geocode from the lat/lng it
-// does return.  Results are cached two ways:
-//   1. _coordCache  — in-memory, keyed by rounded coordinates.  Incidents in the
-//      same area share one Nominatim call within a single page session.
-//   2. nerdc_incident_extras localStorage — survives page reloads.
+// does return.  Two caches avoid redundant API calls:
+//   1. _coordCache  — in-memory, keyed by rounded coordinates (~100 m grid).
+//      Incidents in the same area share one Nominatim call per session.
+//   2. nerdc_incident_extras localStorage — persists across page reloads so
+//      subsequent loads on the same browser are instant.
 //
-// This function is AWAITED before returning incidents, so the dispatch queue
-// always opens with full location data.  Stagger of 350 ms between calls keeps
-// us well within Nominatim's 1 req/s policy.
+// Geocoding runs FIRE-AND-FORGET so pages render immediately.  When all missing
+// locations have been resolved the service dispatches a "nerdc:locations-updated"
+// window event so pages can re-fetch and display the addresses without waiting
+// for the next auto-refresh cycle.
 
 const _coordCache = new Map<string, { address: string; region: string }>()
+let _geocodingRunning = false
 
-async function backfillMissingLocations(incidents: Incident[]): Promise<Incident[]> {
+function backfillMissingLocations(incidents: Incident[]): void {
   const missing = incidents.filter(
     (inc) => !inc.location.address || !inc.location.region
   )
-  if (missing.length === 0) return incidents
+  if (missing.length === 0 || _geocodingRunning) return
 
-  const updated = [...incidents]
+  _geocodingRunning = true
+  ;(async () => {
+    for (let i = 0; i < missing.length; i++) {
+      const inc = missing[i]
+      const key = `${inc.location.lat.toFixed(3)},${inc.location.lng.toFixed(3)}`
+      try {
+        let cached = _coordCache.get(key)
+        if (!cached) {
+          const geo = await reverseGeocode(inc.location.lat, inc.location.lng)
+          cached = { address: geo.address, region: geo.region }
+          _coordCache.set(key, cached)
+        }
+        storeExtras(inc.id, cached)
+      } catch { /* ignore transient errors */ }
 
-  for (let i = 0; i < missing.length; i++) {
-    const inc = missing[i]
-    // Round to ~100 m grid so nearby incidents share one call
-    const key = `${inc.location.lat.toFixed(3)},${inc.location.lng.toFixed(3)}`
-    try {
-      let cached = _coordCache.get(key)
-      if (!cached) {
-        const geo = await reverseGeocode(inc.location.lat, inc.location.lng)
-        cached = { address: geo.address, region: geo.region }
-        _coordCache.set(key, cached)
+      // 350 ms stagger — stays within Nominatim's 1 req/s policy
+      if (i < missing.length - 1) {
+        await new Promise<void>((r) => setTimeout(r, 350))
       }
-      storeExtras(inc.id, cached)
-      const idx = updated.findIndex((u) => u.id === inc.id)
-      if (idx !== -1) updated[idx] = mergeExtras(updated[idx])
-    } catch { /* ignore transient geocoding errors */ }
-
-    // Stagger requests: 350 ms apart (~2.8 req/s) — Nominatim handles this fine
-    if (i < missing.length - 1) {
-      await new Promise<void>((r) => setTimeout(r, 350))
     }
-  }
-
-  return updated
+    _geocodingRunning = false
+    // Signal pages to re-fetch so locations appear without waiting for auto-refresh
+    window.dispatchEvent(new CustomEvent('nerdc:locations-updated'))
+  })()
 }
 
 // ─── Normalise backend response → Incident ────────────────────────────────────
@@ -253,7 +255,9 @@ export const incidentService = {
     const res = await authFetch('/incidents/open')
     if (!res.ok) throw new Error(`Failed to fetch incidents (HTTP ${res.status})`)
     const data = await res.json()
-    return backfillMissingLocations(data.map(normaliseIncident))
+    const incidents = data.map(normaliseIncident)
+    backfillMissingLocations(incidents)
+    return incidents
   },
 
   // GET /incidents/open
@@ -265,7 +269,9 @@ export const incidentService = {
     const res = await authFetch('/incidents/open')
     if (!res.ok) throw new Error(`Failed to fetch open incidents (HTTP ${res.status})`)
     const data = await res.json()
-    return backfillMissingLocations(data.map(normaliseIncident))
+    const incidents = data.map(normaliseIncident)
+    backfillMissingLocations(incidents)
+    return incidents
   },
 
   // GET /incidents/:id

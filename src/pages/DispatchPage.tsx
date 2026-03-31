@@ -111,7 +111,10 @@ export default function DispatchPage() {
       }
     })
 
-    return () => { unsubI(); unsubV() }
+    function onLocationsUpdated() { refreshIncidents() }
+    window.addEventListener('nerdc:locations-updated', onLocationsUpdated)
+
+    return () => { unsubI(); unsubV(); window.removeEventListener('nerdc:locations-updated', onLocationsUpdated) }
   }, [])
 
   function openDispatchModal(incident?: Incident) {

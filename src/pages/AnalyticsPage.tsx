@@ -61,9 +61,13 @@ export default function AnalyticsPage() {
     // Re-fetch when the user switches back to this browser tab
     function onVisible() { if (!document.hidden) fetchData() }
     document.addEventListener('visibilitychange', onVisible)
+    // Re-fetch immediately when background geocoding finishes filling in locations
+    function onLocations() { fetchData() }
+    window.addEventListener('nerdc:locations-updated', onLocations)
     return () => {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
+      window.removeEventListener('nerdc:locations-updated', onLocations)
     }
   }, [fetchData])
 
