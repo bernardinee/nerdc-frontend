@@ -164,10 +164,11 @@ function backfillMissingLocations(incidents: Incident[]): void {
   if (missing.length === 0) return
 
   // ── Step 1: instant offline derivation ───────────────────────────────────
-  // Apply Ghana bounding-box region + nearest capital placeholder immediately.
-  // No network needed — dispatch queue shows something useful straight away.
+  // Derive the region from Ghana bounding boxes immediately (no network).
+  // Address is left empty so Step 2 (Nominatim) fills the real street address.
   for (const inc of missing) {
-    storeExtras(inc.id, deriveLocationFromCoords(inc.location.lat, inc.location.lng))
+    const { region } = deriveLocationFromCoords(inc.location.lat, inc.location.lng)
+    storeExtras(inc.id, { region })
   }
   window.dispatchEvent(new CustomEvent('nerdc:locations-updated'))
 

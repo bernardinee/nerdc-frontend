@@ -106,14 +106,14 @@ export default function IncidentFormPage() {
 
       setLocationConfirmed(true)
     } catch {
-      // Nominatim failed — fall back to instant offline bounding-box derivation
+      // Nominatim failed — derive region silently from bounding boxes, leave
+      // address blank so the user enters the real street address
       const derived = deriveLocationFromCoords(clickedLat, clickedLng)
-      setValue('address', derived.address, { shouldValidate: true })
       const match = GHANA_REGIONS.find(
         (r) => r.toLowerCase() === derived.region.toLowerCase()
       )
       setValue('region', match ?? derived.region, { shouldValidate: true })
-      setLocationConfirmed(true)
+      toast.error('Could not fetch street address. Please type it in below.', { duration: 4000 })
     } finally {
       setGeocoding(false)
     }
